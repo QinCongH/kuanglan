@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useTheme } from '@renderer/composables/useTheme'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import { useTheme } from '@renderer/composables/useTheme'
 import AppSidebar from '@renderer/components/layout/AppSidebar.vue'
 import WebViewBar from '@renderer/components/layout/WebViewBar.vue'
 import ViewContainer from '@renderer/components/views/ViewContainer.vue'
@@ -11,6 +11,7 @@ import AddViewDialog from '@renderer/components/dialogs/AddViewDialog.vue'
 import AddGroupDialog from '@renderer/components/dialogs/AddGroupDialog.vue'
 import EditViewDialog from '@renderer/components/dialogs/EditViewDialog.vue'
 import SettingsPage from '@renderer/components/settings/SettingsPage.vue'
+import ResourcePathSetup from '@renderer/components/setup/ResourcePathSetup.vue'
 
 const { initTheme } = useTheme()
 const groupStore = useGroupStore()
@@ -18,6 +19,7 @@ const viewStore = useViewStore()
 const appStore = useAppStore()
 
 const viewContainerRef = ref<InstanceType<typeof ViewContainer> | null>(null)
+const isSetupWindow = window.location.hash === '#setup'
 
 function getOrigin(url: string): string {
   try {
@@ -28,6 +30,9 @@ function getOrigin(url: string): string {
 }
 
 onMounted(async () => {
+  // Setup window doesn't need further initialization
+  if (isSetupWindow) return
+
   // Listen for initial data from main process - only process once
   let initialized = false
   window.api.db.init((data) => {
@@ -71,11 +76,32 @@ onMounted(async () => {
   })
 
   initTheme()
+
+  // Keyboard navigation: switch views with arrow keys
+  // Main process forwards arrow keys via IPC because WebContentsView steals keyboard focus
+  window.api.keyboard.onArrow((key) => {
+    if (appStore.settingsOpen || appStore.addViewDialogOpen || appStore.addGroupDialogOpen || appStore.externalLinkDialog.open || appStore.editViewDialog.open) return
+
+    const visibleViews = viewStore.visibleViews
+    if (visibleViews.length === 0) return
+
+    const currentIndex = visibleViews.findIndex(v => v.id === viewStore.activeViewId)
+    if (currentIndex === -1) return
+
+    if (key === 'ArrowDown') {
+      const nextIndex = currentIndex < visibleViews.length - 1 ? currentIndex + 1 : 0
+      viewStore.setActiveView(visibleViews[nextIndex].id)
+    } else if (key === 'ArrowUp') {
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : visibleViews.length - 1
+      viewStore.setActiveView(visibleViews[prevIndex].id)
+    }
+  })
 })
 </script>
 
 <template>
-  <div class="app-layout" :class="{ 'sidebar-expanded': appStore.sidebarExpanded }">
+  <ResourcePathSetup v-if="isSetupWindow" />
+  <div v-else class="app-layout" :class="{ 'sidebar-expanded': appStore.sidebarExpanded }">
     <AppSidebar />
     <div class="main-area">
       <WebViewBar :view-container-ref="viewContainerRef" />

@@ -2,12 +2,14 @@
 import { computed, watch } from 'vue'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
+import { Plus } from 'lucide-vue-next'
 
 const viewStore = useViewStore()
 const appStore = useAppStore()
 
 const activeView = computed(() => viewStore.activeView)
 const activeViewId = computed(() => viewStore.activeViewId)
+const hasViews = computed(() => viewStore.views.length > 0)
 
 const dialogOpen = computed(() =>
   appStore.settingsOpen ||
@@ -47,6 +49,10 @@ watch(dialogOpen, (isOpen) => {
   }
 })
 
+function openAddViewDialog() {
+  appStore.addViewDialogOpen = true
+}
+
 defineExpose({
   canGoBack: computed(() => {
     const id = activeViewId.value
@@ -65,7 +71,7 @@ defineExpose({
 
 <template>
   <div class="view-container">
-    <div v-if="!activeView" class="empty-state">
+    <div v-if="!hasViews" class="empty-state">
       <div class="empty-icon">
         <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="4" ry="4"/>
@@ -74,7 +80,14 @@ defineExpose({
         </svg>
       </div>
       <p class="empty-text">还没有添加任何视图</p>
-      <p class="empty-hint">点击侧边栏的「+ 新建分组」开始添加</p>
+      <p class="empty-hint">添加一个网页视图，开始使用框览</p>
+      <button class="empty-action" @click="openAddViewDialog">
+        <Plus :size="16" />
+        <span>添加视图</span>
+      </button>
+    </div>
+    <div v-else-if="!activeView" class="empty-state">
+      <p class="empty-hint">从侧边栏选择一个视图</p>
     </div>
   </div>
 </template>
@@ -112,10 +125,35 @@ defineExpose({
   font-size: var(--font-md);
   font-weight: 500;
   color: var(--color-text-secondary);
+  margin: 0;
 }
 
 .empty-hint {
   font-size: var(--font-sm);
   color: var(--color-text-placeholder);
+  margin: 0;
+}
+
+.empty-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--color-primary);
+  color: white;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 200ms ease;
+  margin-top: var(--space-2);
+}
+
+.empty-action:hover {
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-1px);
 }
 </style>

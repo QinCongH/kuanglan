@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { existsSync } from 'fs'
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { join } from 'path'
-import { initDataDir, loadData } from './database'
-import { importPresets } from './preset'
+import { initDataDir, loadData, getResourcePath, setResourcePath } from './database'
 import { registerIpcHandlers } from './ipc'
-import { setMainWindow, registerWebViewIpc, resizeAllViews } from './webview-manager'
+import { setMainWindow, registerWebViewIpc, resizeAllViews, getActiveWebView } from './webview-manager'
+import { showResourcePathSetup } from './resource-path-setup'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -37,6 +38,17 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     mainWindow!.webContents.send('navigate:url', details.url)
     return { action: 'deny' }
+  })
+
+  // Ctrl+Tab: toggle focus between renderer and WebContentsView
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.control && input.key === 'Tab') {
+      event.preventDefault()
+      const activeView = getActiveWebView()
+      if (activeView) {
+        activeView.webContents.focus()
+      }
+    }
   })
 
   // Handle navigation within main window
@@ -85,7 +97,7 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.kuang-lan')
@@ -93,10 +105,31 @@ app.whenReady().then(() => {
 
   // Initialize in order
   initDataDir()
-  importPresets()
+
+  // Check resource path configuration
+  const resourcePath = getResourcePath()
+  if (!resourcePath || !existsSync(resourcePath)) {
+    const selectedPath = await showResourcePathSetup()
+    if (!selectedPath) {
+      app.quit()
+      return
+    }
+    setResourcePath(selectedPath)
+    // Re-initialize data dir to point to the newly configured path
+    initDataDir()
+  }
+
   registerIpcHandlers()
   registerWebViewIpc()
   createWindow()
+
+  // Register global shortcuts for view switching (works regardless of focus)
+  globalShortcut.register('Ctrl+Up', () => {
+    mainWindow?.webContents.send('keyboard:arrow', 'ArrowUp')
+  })
+  globalShortcut.register('Ctrl+Down', () => {
+    mainWindow?.webContents.send('keyboard:arrow', 'ArrowDown')
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -104,5 +137,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  globalShortcut.unregisterAll()
   if (process.platform !== 'darwin') app.quit()
 })

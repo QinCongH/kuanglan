@@ -4,6 +4,7 @@ import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
 import { ChevronRight, Pencil } from 'lucide-vue-next'
+import draggable from 'vuedraggable'
 import type { Group } from '@renderer/stores/group'
 
 const props = defineProps<{
@@ -36,6 +37,16 @@ function getViewInitials(name: string) {
 function handleEditView(viewId: string) {
   appStore.openEditViewDialog(viewId)
 }
+
+async function onDragEnd() {
+  // Update sort_order for all views in this group
+  const views = groupViews.value
+  for (let i = 0; i < views.length; i++) {
+    if (views[i].sort_order !== i) {
+      await viewStore.updateView(views[i].id, { sort_order: i })
+    }
+  }
+}
 </script>
 
 <template>
@@ -51,27 +62,36 @@ function handleEditView(viewId: string) {
 
     <!-- View List -->
     <div v-if="appStore.sidebarExpanded ? isExpanded : true" class="group-views" :class="{ collapsed: !appStore.sidebarExpanded }">
-      <div
-        v-for="view in groupViews"
-        :key="view.id"
-        class="view-item"
-        :class="{ active: viewStore.activeViewId === view.id }"
-        @click="handleViewClick(view.id)"
+      <draggable
+        :list="groupViews"
+        :disabled="!appStore.sidebarExpanded"
+        item-key="id"
+        class="draggable-list"
+        ghost-class="drag-ghost"
+        @end="onDragEnd"
       >
-        <div class="view-icon">
-          <img v-if="view.icon" :src="view.icon" class="view-icon-img" alt="" />
-          <span v-else class="view-initials">{{ getViewInitials(view.name) }}</span>
-        </div>
-        <span v-if="appStore.sidebarExpanded" class="view-name">{{ view.name }}</span>
-        <button
-          v-if="appStore.sidebarExpanded"
-          class="view-edit-btn"
-          @click.stop="handleEditView(view.id)"
-          title="编辑视图"
-        >
-          <Pencil :size="12" />
-        </button>
-      </div>
+        <template #item="{ element: view }">
+          <div
+            class="view-item"
+            :class="{ active: viewStore.activeViewId === view.id }"
+            @click="handleViewClick(view.id)"
+          >
+            <div class="view-icon">
+              <img v-if="view.icon" :src="view.icon" class="view-icon-img" alt="" />
+              <span v-else class="view-initials">{{ getViewInitials(view.name) }}</span>
+            </div>
+            <span v-if="appStore.sidebarExpanded" class="view-name">{{ view.name }}</span>
+            <button
+              v-if="appStore.sidebarExpanded"
+              class="view-edit-btn"
+              @click.stop="handleEditView(view.id)"
+              title="编辑视图"
+            >
+              <Pencil :size="12" />
+            </button>
+          </div>
+        </template>
+      </draggable>
       <!-- Add view button inside group -->
       <div
         v-if="appStore.sidebarExpanded"
@@ -191,6 +211,18 @@ function handleEditView(viewId: string) {
 .group-views.collapsed {
   padding-left: 0;
   align-items: center;
+}
+
+.draggable-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.drag-ghost {
+  opacity: 0.4;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-sm);
 }
 
 .view-item {

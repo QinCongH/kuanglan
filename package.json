@@ -26,7 +26,8 @@
     "electron-updater": "^6.3.9",
     "lucide-vue-next": "^0.577.0",
     "pinia": "^3.0.4",
-    "uuid": "^14.0.1"
+    "uuid": "^14.0.1",
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "3.0.0",

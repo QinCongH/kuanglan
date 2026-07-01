@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
 import { useTheme } from '@renderer/composables/useTheme'
-import { X, Trash2, Eye, EyeOff, Pencil } from 'lucide-vue-next'
+import { X, Trash2, Eye, EyeOff, Pencil, FolderOpen, RefreshCw } from 'lucide-vue-next'
 
 const groupStore = useGroupStore()
 const viewStore = useViewStore()
@@ -12,11 +12,16 @@ const appStore = useAppStore()
 const { currentTheme, toggleTheme } = useTheme()
 
 const isOpen = computed(() => appStore.settingsOpen)
-const activeTab = ref<'views' | 'groups' | 'appearance'>('views')
+const activeTab = ref<'views' | 'groups' | 'appearance' | 'resource'>('views')
 
 const editingGroupId = ref<string | null>(null)
 const editGroupName = ref('')
-const editGroupIcon = ref('')
+
+const resourcePath = ref<string | null>(null)
+
+onMounted(async () => {
+  resourcePath.value = await window.api.resourcePath.get()
+})
 
 function close() {
   appStore.settingsOpen = false
@@ -37,29 +42,39 @@ function openEditView(viewId: string) {
   appStore.openEditViewDialog(viewId)
 }
 
-function startEditGroup(group: { id: string; name: string; icon: string }) {
+function startEditGroup(group: { id: string; name: string }) {
   editingGroupId.value = group.id
   editGroupName.value = group.name
-  editGroupIcon.value = group.icon
 }
 
 function cancelEditGroup() {
   editingGroupId.value = null
   editGroupName.value = ''
-  editGroupIcon.value = ''
 }
 
 async function saveEditGroup(groupId: string) {
   if (!editGroupName.value.trim()) return
   await groupStore.updateGroup(groupId, {
-    name: editGroupName.value.trim(),
-    icon: editGroupIcon.value || '📁'
+    name: editGroupName.value.trim()
   })
   cancelEditGroup()
 }
 
 async function deleteGroup(groupId: string) {
   await groupStore.deleteGroup(groupId)
+}
+
+async function openResourceDir() {
+  await window.api.resourcePath.open()
+}
+
+async function changeResourcePath() {
+  const selectedPath = await window.api.resourcePath.select()
+  if (!selectedPath) return
+  if (selectedPath === resourcePath.value) return
+
+  await window.api.resourcePath.set(selectedPath)
+  window.location.reload()
 }
 </script>
 
@@ -97,6 +112,13 @@ async function deleteGroup(groupId: string) {
               @click="activeTab = 'appearance'"
             >
               外观
+            </button>
+            <button
+              class="tab-btn"
+              :class="{ active: activeTab === 'resource' }"
+              @click="activeTab = 'resource'"
+            >
+              资源路径
             </button>
           </div>
 
@@ -163,12 +185,6 @@ async function deleteGroup(groupId: string) {
                       placeholder="分组名称"
                       @keyup.enter="saveEditGroup(group.id)"
                     />
-                    <input
-                      v-model="editGroupIcon"
-                      type="text"
-                      class="inline-input inline-input-icon"
-                      placeholder="图标"
-                    />
                   </div>
                   <div class="group-card-actions">
                     <button class="action-btn" @click="saveEditGroup(group.id)" title="保存">
@@ -181,10 +197,6 @@ async function deleteGroup(groupId: string) {
                 </template>
                 <template v-else>
                   <div class="group-card-info">
-                    <span
-                      class="group-card-dot"
-                      :style="{ backgroundColor: group.color }"
-                    ></span>
                     <span class="group-card-name">{{ group.name }}</span>
                     <span v-if="group.is_default" class="group-card-badge">默认</span>
                   </div>
@@ -230,6 +242,27 @@ async function deleteGroup(groupId: string) {
                 >
                   <div class="theme-preview dark-preview"></div>
                   <span>深色模式</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resource Path Tab -->
+          <div v-if="activeTab === 'resource'" class="tab-content">
+            <div class="resource-section">
+              <h3 class="section-title">资源路径</h3>
+              <p class="section-desc">资源文件存放的本地目录</p>
+              <div class="resource-path-display">
+                <span class="resource-path-text">{{ resourcePath || '未配置' }}</span>
+              </div>
+              <div class="resource-actions">
+                <button class="resource-btn" @click="openResourceDir" :disabled="!resourcePath">
+                  <FolderOpen :size="16" />
+                  <span>打开目录</span>
+                </button>
+                <button class="resource-btn" @click="changeResourcePath">
+                  <RefreshCw :size="16" />
+                  <span>修改目录</span>
                 </button>
               </div>
             </div>
@@ -429,13 +462,6 @@ async function deleteGroup(groupId: string) {
   min-width: 0;
 }
 
-.group-card-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
 .group-card-name {
   font-size: var(--font-base);
   font-weight: 500;
@@ -479,11 +505,6 @@ async function deleteGroup(groupId: string) {
 .inline-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-light);
-}
-
-.inline-input-icon {
-  flex: 0 0 48px;
-  text-align: center;
 }
 
 .action-text {
@@ -575,5 +596,66 @@ async function deleteGroup(groupId: string) {
 .theme-option span {
   font-size: var(--font-sm);
   color: var(--color-text-primary);
+}
+
+/* Resource path */
+.resource-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.section-desc {
+  font-size: var(--font-xs);
+  color: var(--color-text-placeholder);
+  margin: 0;
+}
+
+.resource-path-display {
+  padding: var(--space-3);
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.resource-path-text {
+  font-size: var(--font-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+.resource-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.resource-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-soft);
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.resource-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.resource-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

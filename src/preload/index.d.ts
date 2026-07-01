@@ -109,12 +109,25 @@ declare global {
       navigate: {
         onUrl: (callback: (url: string) => void) => void
       }
+      keyboard: {
+        onArrow: (callback: (key: string) => void) => void
+      }
       shell: {
         openExternal: (url: string) => Promise<void>
       }
       theme: {
         getSystemTheme: () => Promise<string>
         onSystemThemeChange: (callback: (theme: string) => void) => void
+      }
+      setup: {
+        submitPath: (path: string) => Promise<void>
+        selectDir: () => Promise<string | null>
+      }
+      resourcePath: {
+        get: () => Promise<string | null>
+        set: (path: string) => Promise<void>
+        open: () => Promise<void>
+        select: () => Promise<string | null>
       }
     }
   }

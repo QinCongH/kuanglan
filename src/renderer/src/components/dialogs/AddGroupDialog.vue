@@ -58,17 +58,6 @@ async function handleSubmit() {
               class="form-input"
             />
           </div>
-
-          <!-- Icon -->
-          <div class="form-field">
-            <label class="form-label">分组图标</label>
-            <input
-              v-model="icon"
-              type="text"
-              placeholder="例如：🤖"
-              class="form-input"
-            />
-          </div>
         </div>
 
         <div class="dialog-footer">

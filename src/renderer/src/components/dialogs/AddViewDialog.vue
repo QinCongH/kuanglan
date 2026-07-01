@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import { X, ChevronDown } from 'lucide-vue-next'
+import { X, ChevronDown, Sparkles } from 'lucide-vue-next'
 
 const groupStore = useGroupStore()
 const viewStore = useViewStore()
@@ -15,29 +15,75 @@ const icon = ref('')
 const selectedGroupId = ref('')
 const showGroupDropdown = ref(false)
 
+interface RecommendedSite {
+  name: string
+  url: string
+  tag: string
+  favicon: string
+}
+
+function getFavicon(siteUrl: string): string {
+  try {
+    return `https://favicon.im/${new URL(siteUrl).hostname}`
+  } catch {
+    return ''
+  }
+}
+
+const recommendedSites: RecommendedSite[] = [
+  // 国内大模型
+  { name: '智谱清言', url: 'https://chatglm.cn/detail', tag: '国内', favicon: getFavicon('https://chatglm.cn/detail') },
+  { name: '通义千问', url: 'https://chat.qwen.ai', tag: '国内', favicon: getFavicon('https://chat.qwen.ai') },
+  { name: '文心一言', url: 'https://chat.baidu.com', tag: '国内', favicon: getFavicon('https://chat.baidu.com') },
+  { name: '腾讯混元', url: 'https://hunyuan.tencent.com/chat', tag: '国内', favicon: getFavicon('https://hunyuan.tencent.com/chat') },
+  { name: '讯飞星火', url: 'https://xinghuo.xfyun.cn/chat', tag: '国内', favicon: getFavicon('https://xinghuo.xfyun.cn/chat') },
+  { name: 'DeepSeek', url: 'https://chat.deepseek.com', tag: '国内', favicon: getFavicon('https://chat.deepseek.com') },
+  { name: 'Kimi', url: 'https://kimi.moonshot.cn', tag: '国内', favicon: getFavicon('https://kimi.moonshot.cn') },
+  { name: '豆包', url: 'https://www.doubao.com/chat', tag: '国内', favicon: getFavicon('https://www.doubao.com/chat') },
+  // 国外大模型
+  { name: 'ChatGPT', url: 'https://chatgpt.com', tag: '国外', favicon: getFavicon('https://chatgpt.com') },
+  { name: 'Claude', url: 'https://claude.ai', tag: '国外', favicon: getFavicon('https://claude.ai') },
+  { name: 'Gemini', url: 'https://gemini.google.com', tag: '国外', favicon: getFavicon('https://gemini.google.com') },
+  { name: 'Grok', url: 'https://grok.x.ai', tag: '国外', favicon: getFavicon('https://grok.x.ai') },
+  { name: 'Mistral', url: 'https://chat.mistral.ai', tag: '国外', favicon: getFavicon('https://chat.mistral.ai') },
+  { name: 'Perplexity AI', url: 'https://www.perplexity.ai', tag: '国外', favicon: getFavicon('https://www.perplexity.ai') },
+]
+
 const isOpen = computed(() => appStore.addViewDialogOpen)
 
 const selectedGroup = computed(() =>
   groupStore.groups.find(g => g.id === selectedGroupId.value)
 )
 
+// Auto-select default group when dialog opens
+watch(() => appStore.addViewDialogOpen, (open) => {
+  if (open && !selectedGroupId.value) {
+    selectedGroupId.value = groupStore.defaultGroup?.id ?? ''
+  }
+})
+
 // Auto-fetch favicon when URL changes
 watch(url, async (newUrl) => {
-  if (!newUrl.trim() || icon.value) return
+  if (!newUrl.trim()) return
   const favicon = await fetchFavicon(newUrl)
   if (favicon) {
     icon.value = favicon
   }
 })
 
-async function fetchFavicon(url: string): Promise<string | null> {
+async function fetchFavicon(siteUrl: string): Promise<string | null> {
   try {
-    const urlObj = new URL(url)
-    // Use favicon.im service
+    const urlObj = new URL(siteUrl)
     return `https://favicon.im/${urlObj.hostname}`
   } catch {
     return null
   }
+}
+
+function selectRecommended(site: RecommendedSite) {
+  name.value = site.name
+  url.value = site.url
+  icon.value = ''
 }
 
 function close() {
@@ -78,9 +124,6 @@ async function handleSubmit() {
   <Teleport to="body">
     <div v-if="isOpen" class="dialog-overlay" @click.self="close">
       <div class="dialog-container">
-        <!-- Decorative line -->
-        <div class="dialog-accent" :style="{ backgroundColor: selectedGroup?.color || 'var(--color-primary)' }"></div>
-
         <div class="dialog-header">
           <h3 class="dialog-title">添加视图</h3>
           <button class="dialog-close" @click="close">
@@ -89,16 +132,29 @@ async function handleSubmit() {
         </div>
 
         <div class="dialog-body">
+          <!-- Recommended sites -->
+          <div class="form-field">
+            <label class="form-label"><Sparkles :size="14" style="vertical-align: -2px" /> 推荐站点</label>
+            <div class="recommended-grid">
+              <button
+                v-for="site in recommendedSites"
+                :key="site.url"
+                class="recommend-card"
+                :class="{ active: url === site.url }"
+                @click="selectRecommended(site)"
+              >
+                <img class="recommend-favicon" :src="site.favicon" alt="" />
+                <span class="recommend-name">{{ site.name }}</span>
+                <span class="recommend-tag" :class="site.tag === '国内' ? 'tag-domestic' : 'tag-overseas'">{{ site.tag }}</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Group select -->
           <div class="form-field">
             <label class="form-label">选择分组</label>
             <div class="group-select" @click="showGroupDropdown = !showGroupDropdown">
               <div class="group-select-trigger">
-                <span
-                  v-if="selectedGroup"
-                  class="group-select-dot"
-                  :style="{ backgroundColor: selectedGroup.color }"
-                ></span>
                 <span class="group-select-name">{{ selectedGroup?.name || '选择分组' }}</span>
                 <ChevronDown :size="14" class="group-select-arrow" :class="{ open: showGroupDropdown }" />
               </div>
@@ -109,7 +165,6 @@ async function handleSubmit() {
                   class="group-select-option"
                   @click.stop="selectGroup(group.id)"
                 >
-                  <span class="group-select-dot" :style="{ backgroundColor: group.color }"></span>
                   <span>{{ group.name }}</span>
                 </div>
               </div>
@@ -155,7 +210,7 @@ async function handleSubmit() {
                 class="form-input form-input-mono"
               />
             </div>
-            <p class="form-hint">填写地址后会自动尝试获取网站图标</p>
+            <p class="form-hint">填写地址后会自动获取网站图标</p>
           </div>
         </div>
 
@@ -184,7 +239,7 @@ async function handleSubmit() {
 .dialog-container {
   background: var(--color-bg-card);
   border-radius: var(--radius-lg);
-  width: 400px;
+  width: 580px;
   max-width: 90vw;
   max-height: 90vh;
   overflow: hidden;
@@ -425,5 +480,74 @@ async function handleSubmit() {
   background: var(--color-primary-hover);
   box-shadow: var(--shadow-glow);
   transform: translateY(-1px);
+}
+
+/* Recommended sites */
+.recommended-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2);
+}
+
+.recommend-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-soft);
+  cursor: pointer;
+  transition: all 150ms ease;
+  text-align: left;
+}
+
+.recommend-card:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.recommend-card.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.recommend-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.recommend-name {
+  font-size: var(--font-xs);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recommend-tag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.tag-domestic {
+  background: rgba(126, 220, 197, 0.15);
+  color: #4db8a0;
+}
+
+.tag-overseas {
+  background: rgba(184, 169, 255, 0.15);
+  color: #9b8ee0;
 }
 </style>

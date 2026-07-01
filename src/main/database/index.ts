@@ -9,7 +9,10 @@ const CONFIG_FILE = 'config.json'
 
 let dataPath = ''
 let dbPath = ''
-let configPath = ''
+
+// Config always lives in userData/app_data (needed before resourcePath is known)
+const defaultConfigDir = () => join(app.getPath('userData'), DATA_DIR)
+let defaultConfigPath = ''
 
 export interface Group {
   id: string
@@ -47,6 +50,7 @@ export interface AppConfig {
   activeViewId: string | null
   sidebarExpanded: boolean
   windowBounds: { x: number; y: number; width: number; height: number } | null
+  resourcePath: string | null
 }
 
 const DEFAULT_DATA: AppData = {
@@ -59,7 +63,8 @@ const DEFAULT_CONFIG: AppConfig = {
   theme: 'auto',
   activeViewId: null,
   sidebarExpanded: false,
-  windowBounds: null
+  windowBounds: null,
+  resourcePath: null
 }
 
 function ensureDir(dir: string): void {
@@ -69,10 +74,19 @@ function ensureDir(dir: string): void {
 }
 
 export function initDataDir(): void {
-  dataPath = join(app.getPath('userData'), DATA_DIR)
+  // Config file always at userData/app_data/ (must be accessible before resourcePath is known)
+  const cfgDir = defaultConfigDir()
+  ensureDir(cfgDir)
+  defaultConfigPath = join(cfgDir, CONFIG_FILE)
+
+  const config = readConfig()
+  if (config.resourcePath && existsSync(config.resourcePath)) {
+    dataPath = config.resourcePath
+  } else {
+    dataPath = cfgDir
+  }
   ensureDir(dataPath)
   dbPath = join(dataPath, DB_FILE)
-  configPath = join(dataPath, CONFIG_FILE)
 }
 
 export function getDataPath(): string {
@@ -190,13 +204,14 @@ export function getViewsByGroup(groupId: string): View[] {
   return readData().views.filter(v => v.group_id === groupId)
 }
 
-// Config operations
+// Config operations — config always at userData/app_data/ so it's readable before resourcePath is set
 export function readConfig(): AppConfig {
-  if (!existsSync(configPath)) {
+  const cfgPath = defaultConfigPath || join(defaultConfigDir(), CONFIG_FILE)
+  if (!existsSync(cfgPath)) {
     return { ...DEFAULT_CONFIG }
   }
   try {
-    const content = readFileSync(configPath, 'utf-8')
+    const content = readFileSync(cfgPath, 'utf-8')
     return { ...DEFAULT_CONFIG, ...JSON.parse(content) }
   } catch {
     return { ...DEFAULT_CONFIG }
@@ -204,9 +219,10 @@ export function readConfig(): AppConfig {
 }
 
 export function writeConfig(config: Partial<AppConfig>): void {
+  const cfgPath = defaultConfigPath || join(defaultConfigDir(), CONFIG_FILE)
   const current = readConfig()
   const updated = { ...current, ...config }
-  writeFileSync(configPath, JSON.stringify(updated, null, 2), 'utf-8')
+  writeFileSync(cfgPath, JSON.stringify(updated, null, 2), 'utf-8')
 }
 
 export function getSetting(key: keyof AppConfig): unknown {
@@ -218,5 +234,26 @@ export function setSetting(key: keyof AppConfig, value: unknown): void {
   const config = readConfig()
   const configRecord = config as unknown as Record<string, unknown>
   configRecord[key] = value
-  writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  const cfgPath = defaultConfigPath || join(defaultConfigDir(), CONFIG_FILE)
+  writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf-8')
+}
+
+// Resource path operations
+export function getResourcePath(): string | null {
+  return readConfig().resourcePath
+}
+
+export function setResourcePath(path: string): void {
+  writeConfig({ resourcePath: path })
+  ensureResourcePath(path)
+}
+
+export function ensureResourcePath(dirPath: string): void {
+  if (!existsSync(dirPath)) {
+    mkdirSync(dirPath, { recursive: true })
+  }
+  const defaultDir = join(dirPath, '默认目录')
+  if (!existsSync(defaultDir)) {
+    mkdirSync(defaultDir, { recursive: true })
+  }
 }

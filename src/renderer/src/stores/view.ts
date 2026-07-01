@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { View } from './group'
+import { useGroupStore } from './group'
 
 export const useViewStore = defineStore('view', () => {
   const views = ref<View[]>([])
@@ -10,9 +11,18 @@ export const useViewStore = defineStore('view', () => {
     views.value.find((v) => v.id === activeViewId.value)
   )
 
-  const visibleViews = computed(() =>
-    views.value.filter((v) => v.visible)
-  )
+  const visibleViews = computed(() => {
+    const groupStore = useGroupStore()
+    const groupOrder = new Map(groupStore.sortedGroups.map((g, i) => [g.id, i]))
+    return views.value
+      .filter((v) => v.visible)
+      .sort((a, b) => {
+        const ga = groupOrder.get(a.group_id) ?? 0
+        const gb = groupOrder.get(b.group_id) ?? 0
+        if (ga !== gb) return ga - gb
+        return a.sort_order - b.sort_order
+      })
+  })
 
   function getViewsByGroup(groupId: string) {
     return views.value

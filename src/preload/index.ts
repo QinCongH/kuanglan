@@ -51,6 +51,12 @@ const api = {
       ipcRenderer.on('navigate:url', (_e, url: string) => callback(url))
     }
   },
+  // Keyboard events forwarded from main process
+  keyboard: {
+    onArrow: (callback: (key: string) => void) => {
+      ipcRenderer.on('keyboard:arrow', (_e, key: string) => callback(key))
+    }
+  },
   // External link
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url)
@@ -61,6 +67,18 @@ const api = {
     onSystemThemeChange: (callback: (theme: string) => void) => {
       ipcRenderer.on('theme:system-changed', (_e, theme) => callback(theme))
     }
+  },
+  // Setup window (resource path initial config)
+  setup: {
+    submitPath: (path: string) => ipcRenderer.invoke('setup:resource-path', path),
+    selectDir: () => ipcRenderer.invoke('setup:select-dir')
+  },
+  // Resource path management
+  resourcePath: {
+    get: () => ipcRenderer.invoke('setting:resource-path:get'),
+    set: (path: string) => ipcRenderer.invoke('setting:resource-path:set', path),
+    open: () => ipcRenderer.invoke('setting:resource-path:open'),
+    select: () => ipcRenderer.invoke('setting:resource-path:select')
   }
 }
 

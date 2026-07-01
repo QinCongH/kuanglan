@@ -25,6 +25,14 @@ export function createWebView(viewId: string, url: string): void {
   const wcView = new WebContentsView()
   wcView.webContents.loadURL(url)
 
+  // Forward Ctrl+Tab from WebContentsView to focus renderer
+  wcView.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.control && input.key === 'Tab') {
+      event.preventDefault()
+      mainWindow!.webContents.focus()
+    }
+  })
+
   for (const view of viewMap.values()) {
     view.setVisible(false)
   }
@@ -135,6 +143,14 @@ export function clearViewCache(viewId: string): void {
       storages: ['cookies', 'localstorage', 'serviceworkers', 'websql', 'indexdb']
     })
   }
+}
+
+export function getActiveViewId(): string | null {
+  return activeViewId
+}
+
+export function getActiveWebView(): WebContentsView | null {
+  return activeViewId ? viewMap.get(activeViewId) ?? null : null
 }
 
 export function registerWebViewIpc(): void {

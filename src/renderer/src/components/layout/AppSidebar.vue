@@ -34,10 +34,7 @@ function handleSettings() {
     <!-- Brand -->
     <div class="sidebar-brand" @click="appStore.toggleSidebar">
       <div class="brand-icon">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="4" ry="4"/>
-          <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" fill="currentColor" opacity="0.3"/>
-        </svg>
+        <img src="/icon.png" alt="框览" class="brand-logo" />
       </div>
       <span v-if="appStore.sidebarExpanded" class="brand-text">框览</span>
     </div>
@@ -120,6 +117,13 @@ function handleSettings() {
 
 .brand-icon:hover {
   transform: scale(1.05);
+}
+
+.brand-logo {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .brand-text {
