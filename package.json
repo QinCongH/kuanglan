@@ -1,9 +1,9 @@
 {
-  "name": "kuang_lan",
+  "name": "kuang-lan",
   "version": "1.0.0",
-  "description": "An Electron application with Vue and TypeScript",
+  "description": "框览 - 多视图聚合浏览器",
   "main": "./out/main/index.js",
-  "author": "example.com",
+  "author": "",
   "homepage": "https://electron-vite.org",
   "scripts": {
     "format": "prettier --write .",

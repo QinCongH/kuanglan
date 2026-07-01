@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: kuang_lan
+appId: com.kuang-lan
+productName: 框览
 directories:
   buildResources: build
 files:
@@ -12,8 +12,10 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: kuang_lan
+  executableName: 框览
 nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
