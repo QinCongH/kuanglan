@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "group": {
+    "name": "AI 助手",
+    "icon": "🤖",
+    "color": "#FF8FA3"
+  },
+  "views": [
+    { "name": "ChatGPT", "url": "https://chat.openai.com", "icon": "chatgpt" },
+    { "name": "Claude", "url": "https://claude.ai", "icon": "claude" },
+    { "name": "Gemini", "url": "https://gemini.google.com", "icon": "gemini" },
+    { "name": "Copilot", "url": "https://copilot.microsoft.com", "icon": "copilot" }
+  ]
+}
