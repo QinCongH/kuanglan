@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { watch } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
+import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
 import { useTheme } from '@renderer/composables/useTheme'
 import SidebarGroup from './SidebarGroup.vue'
 import { Plus, FolderPlus, Settings } from 'lucide-vue-next'
 
 const groupStore = useGroupStore()
+const viewStore = useViewStore()
 const appStore = useAppStore()
 const { currentTheme, toggleTheme } = useTheme()
 
@@ -41,6 +43,9 @@ function handleSettings() {
 
     <!-- Group list -->
     <div class="sidebar-groups">
+      <div v-if="viewStore.visibleViews.length === 0 && appStore.sidebarExpanded" class="sidebar-empty">
+        <p class="empty-guide">鼠标移动到顶部添加视图</p>
+      </div>
       <SidebarGroup
         v-for="group in groupStore.sortedGroups"
         :key="group.id"
@@ -120,8 +125,8 @@ function handleSettings() {
 }
 
 .brand-logo {
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   border-radius: 4px;
 }
@@ -142,6 +147,22 @@ function handleSettings() {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+/* Empty state */
+.sidebar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4) var(--space-2);
+}
+
+.empty-guide {
+  font-size: var(--font-xs);
+  color: var(--color-text-placeholder);
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
 }
 
 /* Collapsed sidebar overrides */

@@ -18,6 +18,8 @@ export const useAppStore = defineStore('app', () => {
   const addViewDialogOpen = ref(false)
   const addGroupDialogOpen = ref(false)
   const initialized = ref(false)
+  const topDockOpen = ref(false)
+  const showDockHint = ref(false)
 
   // External link confirmation dialog
   const externalLinkDialog = ref<ExternalLinkDialog>({
@@ -62,6 +64,8 @@ export const useAppStore = defineStore('app', () => {
     addViewDialogOpen,
     addGroupDialogOpen,
     initialized,
+    topDockOpen,
+    showDockHint,
     externalLinkDialog,
     editViewDialog,
     toggleSidebar,

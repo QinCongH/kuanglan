@@ -49,7 +49,7 @@ export function importPresets(): void {
           name: v.name,
           url: v.url,
           icon: v.icon,
-          visible: 1,
+          visible: 0,
           sort_order: i,
           bounds: '{}'
         })

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import { ChevronRight, Pencil } from 'lucide-vue-next'
+import { ChevronRight, Trash2 } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import type { Group } from '@renderer/stores/group'
 
@@ -17,6 +17,11 @@ const appStore = useAppStore()
 
 const isExpanded = ref(props.group.collapsed === 0)
 
+// Long press delete state
+const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const longPressActiveId = ref<string | null>(null)
+const longPressTriggered = ref(false)
+
 const groupViews = computed(() =>
   viewStore.getViewsByGroup(props.group.id).filter(v => v.visible === 1)
 )
@@ -27,6 +32,10 @@ function toggleExpand() {
 }
 
 function handleViewClick(viewId: string) {
+  if (longPressTriggered.value) {
+    longPressTriggered.value = false
+    return
+  }
   viewStore.setActiveView(viewId)
 }
 
@@ -34,12 +43,49 @@ function getViewInitials(name: string) {
   return name.slice(0, 2).toUpperCase()
 }
 
-function handleEditView(viewId: string) {
-  appStore.openEditViewDialog(viewId)
+function handleMouseDown(viewId: string) {
+  longPressTriggered.value = false
+  longPressTimer.value = setTimeout(() => {
+    longPressActiveId.value = viewId
+    longPressTriggered.value = true
+  }, 500)
+}
+
+function handleMouseUp() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+function handleMouseLeave() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+  longPressActiveId.value = null
+  longPressTriggered.value = false
+}
+
+async function confirmDelete(viewId: string) {
+  // Remove from sidebar (set visible=0), don't delete the view itself
+  await viewStore.updateView(viewId, { visible: 0 })
+  // Destroy the WebContentsView to free memory
+  window.api.webview.remove(viewId)
+  // If this was the active view, switch to another visible view
+  if (viewStore.activeViewId === viewId) {
+    const nextVisible = viewStore.views.find(v => v.visible === 1 && v.id !== viewId)
+    if (nextVisible) {
+      viewStore.setActiveView(nextVisible.id)
+    } else {
+      viewStore.activeViewId = null
+    }
+  }
+  longPressActiveId.value = null
+  longPressTriggered.value = false
 }
 
 async function onDragEnd() {
-  // Update sort_order for all views in this group
   const views = groupViews.value
   for (let i = 0; i < views.length; i++) {
     if (views[i].sort_order !== i) {
@@ -73,22 +119,25 @@ async function onDragEnd() {
         <template #item="{ element: view }">
           <div
             class="view-item"
-            :class="{ active: viewStore.activeViewId === view.id }"
+            :class="{ active: viewStore.activeViewId === view.id, 'long-press-active': longPressActiveId === view.id }"
             @click="handleViewClick(view.id)"
+            @mousedown="handleMouseDown(view.id)"
+            @mouseup="handleMouseUp"
+            @mouseleave="handleMouseLeave"
+            :title="longPressActiveId === view.id ? undefined : '长按可移除视图'"
           >
-            <div class="view-icon">
+            <div class="view-icon" :class="{ 'delete-mode': longPressActiveId === view.id }">
               <img v-if="view.icon" :src="view.icon" class="view-icon-img" alt="" />
               <span v-else class="view-initials">{{ getViewInitials(view.name) }}</span>
+              <button
+                v-if="longPressActiveId === view.id"
+                class="delete-badge"
+                @click.stop="confirmDelete(view.id)"
+              >
+                <Trash2 :size="12" />
+              </button>
             </div>
             <span v-if="appStore.sidebarExpanded" class="view-name">{{ view.name }}</span>
-            <button
-              v-if="appStore.sidebarExpanded"
-              class="view-edit-btn"
-              @click.stop="handleEditView(view.id)"
-              title="编辑视图"
-            >
-              <Pencil :size="12" />
-            </button>
           </div>
         </template>
       </draggable>
@@ -166,36 +215,42 @@ async function onDragEnd() {
   color: var(--color-text-secondary);
 }
 
-.view-edit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  opacity: 0;
-  transition: all 150ms ease;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  margin-left: auto;
-}
-
-.view-item:hover .view-edit-btn {
-  opacity: 1;
-}
-
-.view-edit-btn:hover {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
-}
-
 .view-icon-img {
   width: 30px;
   height: 30px;
   object-fit: contain;
   display: block;
+}
+
+/* Long press delete */
+.view-icon.delete-mode {
+  animation: press-pulse 600ms ease-in-out infinite;
+  background: var(--color-danger-light);
+  backdrop-filter: blur(8px);
+  border-color: var(--color-danger);
+}
+
+.delete-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  z-index: 2;
+  border: 2px solid var(--color-bg-soft);
+}
+
+.view-item.long-press-active {
+  background: var(--color-danger-light);
 }
 
 /* Views */
@@ -267,6 +322,7 @@ async function onDragEnd() {
   flex-shrink: 0;
   transition: all 200ms var(--ease-bounce);
   overflow: hidden;
+  position: relative;
 }
 
 .view-item:hover .view-icon {

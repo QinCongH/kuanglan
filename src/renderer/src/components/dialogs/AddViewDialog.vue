@@ -111,10 +111,13 @@ async function handleSubmit() {
     name: name.value.trim(),
     url: url.value.trim(),
     icon: icon.value,
-    visible: 1,
+    visible: 0,
     sort_order: viewStore.views.filter(v => v.group_id === groupId).length,
     bounds: '{}'
   })
+
+  // Show dock hint so user sees the new view in the top dock
+  appStore.showDockHint = true
 
   close()
 }

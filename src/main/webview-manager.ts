@@ -114,15 +114,28 @@ export function goBack(viewId: string): void {
   }
 }
 
+let dockVisible = false
+const DOCK_HEIGHT = 56
+
+export function setDockVisible(visible: boolean): void {
+  dockVisible = visible
+  // Adjust active view bounds to make room for dock
+  const activeView = activeViewId ? viewMap.get(activeViewId) : null
+  if (activeView) {
+    updateViewBounds(activeView)
+  }
+}
+
 function updateViewBounds(wcView: WebContentsView) {
   if (!mainWindow) return
   const bounds = mainWindow.getBounds()
   const topbarHeight = 40
   const padding = 8
+  const dockOffset = dockVisible ? DOCK_HEIGHT : 0
 
   wcView.setBounds({
     x: currentSidebarWidth + padding,
-    y: topbarHeight + padding,
+    y: topbarHeight + dockOffset + padding,
     width: bounds.width - currentSidebarWidth - padding * 2,
     height: bounds.height - topbarHeight - padding * 2
   })

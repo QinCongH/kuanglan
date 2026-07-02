@@ -57,6 +57,18 @@ const api = {
       ipcRenderer.on('keyboard:arrow', (_e, key: string) => callback(key))
     }
   },
+  // Dock hover events from main process
+  dock: {
+    onHoverEnter: (callback: () => void) => {
+      ipcRenderer.on('dock:hover-enter', () => callback())
+    },
+    onHoverLeave: (callback: () => void) => {
+      ipcRenderer.on('dock:hover-leave', () => callback())
+    },
+    panelVisible: (visible: boolean) => {
+      ipcRenderer.send('dock:panel-visible', visible)
+    }
+  },
   // External link
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url)

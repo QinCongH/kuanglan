@@ -24,6 +24,23 @@ export const useViewStore = defineStore('view', () => {
       })
   })
 
+  const visibleViewCount = computed(() =>
+    views.value.filter(v => v.visible === 1).length
+  )
+
+  const allViewsForDock = computed(() => {
+    const groupStore = useGroupStore()
+    const groupOrder = new Map(groupStore.sortedGroups.map((g, i) => [g.id, i]))
+    return views.value
+      .filter(v => v.visible === 0)
+      .sort((a, b) => {
+        const ga = groupOrder.get(a.group_id) ?? 0
+        const gb = groupOrder.get(b.group_id) ?? 0
+        if (ga !== gb) return ga - gb
+        return a.sort_order - b.sort_order
+      })
+  })
+
   function getViewsByGroup(groupId: string) {
     return views.value
       .filter((v) => v.group_id === groupId)
@@ -76,11 +93,19 @@ export const useViewStore = defineStore('view', () => {
     return updated
   }
 
+  async function addViewToSidebar(viewId: string): Promise<boolean> {
+    if (visibleViewCount.value >= 8) return false
+    await updateView(viewId, { visible: 1 })
+    return true
+  }
+
   return {
     views,
     activeViewId,
     activeView,
     visibleViews,
+    visibleViewCount,
+    allViewsForDock,
     getViewsByGroup,
     setViews,
     setActiveView,
@@ -88,6 +113,7 @@ export const useViewStore = defineStore('view', () => {
     updateView,
     updateViewUrl,
     deleteView,
-    moveView
+    moveView,
+    addViewToSidebar
   }
 })

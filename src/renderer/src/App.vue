@@ -12,6 +12,8 @@ import AddGroupDialog from '@renderer/components/dialogs/AddGroupDialog.vue'
 import EditViewDialog from '@renderer/components/dialogs/EditViewDialog.vue'
 import SettingsPage from '@renderer/components/settings/SettingsPage.vue'
 import ResourcePathSetup from '@renderer/components/setup/ResourcePathSetup.vue'
+import ToastNotification from '@renderer/components/common/ToastNotification.vue'
+import TopViewDock from '@renderer/components/layout/TopViewDock.vue'
 
 const { initTheme } = useTheme()
 const groupStore = useGroupStore()
@@ -112,6 +114,8 @@ onMounted(async () => {
     <SettingsPage />
     <ExternalLinkDialog />
     <EditViewDialog />
+    <ToastNotification />
+    <TopViewDock />
   </div>
 </template>
 

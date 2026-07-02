@@ -112,6 +112,11 @@ declare global {
       keyboard: {
         onArrow: (callback: (key: string) => void) => void
       }
+      dock: {
+        onHoverEnter: (callback: () => void) => void
+        onHoverLeave: (callback: () => void) => void
+        panelVisible: (visible: boolean) => void
+      }
       shell: {
         openExternal: (url: string) => Promise<void>
       }
