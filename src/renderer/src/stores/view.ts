@@ -81,6 +81,8 @@ export const useViewStore = defineStore('view', () => {
     views.value = views.value.filter((v) => v.id !== id)
     // Remove the WebContentsView from main process
     window.api.webview.remove(id)
+    // Force cleanup any lingering renderer process
+    window.api.webview.forceCleanup(id)
     if (activeViewId.value === id) {
       activeViewId.value = views.value[0]?.id ?? null
     }

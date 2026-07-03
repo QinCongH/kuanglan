@@ -78,7 +78,7 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 150;
   animation: fade-in 200ms ease-out;
 }
 

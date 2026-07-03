@@ -102,9 +102,11 @@ declare global {
         canGoBack: (viewId: string) => Promise<boolean>
         goBack: (viewId: string) => Promise<void>
         remove: (viewId: string) => Promise<void>
+        forceCleanup: (viewId: string) => Promise<void>
         clearCache: (viewId: string) => Promise<void>
         setSidebarWidth: (width: number) => Promise<void>
         hideAll: () => Promise<void>
+        cleanupAll: () => Promise<void>
       }
       navigate: {
         onUrl: (callback: (url: string) => void) => void
@@ -133,6 +135,7 @@ declare global {
         set: (path: string) => Promise<void>
         open: () => Promise<void>
         select: () => Promise<string | null>
+        reinitialize: () => Promise<{ groups: Group[]; views: View[] }>
       }
     }
   }

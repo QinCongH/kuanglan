@@ -21,13 +21,13 @@ const dialogOpen = computed(() =>
 
 function syncView(viewId: string | null) {
   if (!viewId) {
-    window.api.webview.hideAll?.()
+    window.api.webview.cleanupAll()
     return
   }
 
   const view = viewStore.views.find(v => v.id === viewId)
   if (!view) {
-    window.api.webview.hideAll?.()
+    window.api.webview.cleanupAll()
     return
   }
 

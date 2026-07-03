@@ -55,10 +55,25 @@ const selectedGroup = computed(() =>
   groupStore.groups.find(g => g.id === selectedGroupId.value)
 )
 
-// Auto-select default group when dialog opens
+// Auto-select group and apply prefill when dialog opens
 watch(() => appStore.addViewDialogOpen, (open) => {
-  if (open && !selectedGroupId.value) {
-    selectedGroupId.value = groupStore.defaultGroup?.id ?? ''
+  if (open) {
+    const prefill = appStore.addViewPrefillData
+    if (prefill) {
+      name.value = prefill.name
+      url.value = prefill.url
+      icon.value = prefill.icon
+      // Try to match group by name
+      if (prefill.groupName) {
+        const match = groupStore.groups.find(g => g.name === prefill.groupName)
+        if (match) selectedGroupId.value = match.id
+      }
+    }
+    if (appStore.addViewDialogGroupId) {
+      selectedGroupId.value = appStore.addViewDialogGroupId
+    } else if (!selectedGroupId.value) {
+      selectedGroupId.value = groupStore.defaultGroup?.id ?? ''
+    }
   }
 })
 
@@ -88,6 +103,8 @@ function selectRecommended(site: RecommendedSite) {
 
 function close() {
   appStore.addViewDialogOpen = false
+  appStore.addViewDialogGroupId = null
+  appStore.addViewPrefillData = null
   name.value = ''
   url.value = ''
   icon.value = ''
@@ -235,7 +252,7 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 150;
   animation: fade-in 200ms ease-out;
 }
 

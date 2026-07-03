@@ -87,9 +87,6 @@ async function handleSubmit() {
   <Teleport to="body">
     <div v-if="isOpen" class="dialog-overlay" @click.self="close">
       <div class="dialog-container">
-        <!-- Decorative line -->
-        <div class="dialog-accent" :style="{ backgroundColor: selectedGroup?.color || 'var(--color-primary)' }"></div>
-
         <div class="dialog-header">
           <h3 class="dialog-title">
             <Pencil :size="16" />
@@ -106,11 +103,6 @@ async function handleSubmit() {
             <label class="form-label">选择分组</label>
             <div class="group-select" @click="showGroupDropdown = !showGroupDropdown">
               <div class="group-select-trigger">
-                <span
-                  v-if="selectedGroup"
-                  class="group-select-dot"
-                  :style="{ backgroundColor: selectedGroup.color }"
-                ></span>
                 <span class="group-select-name">{{ selectedGroup?.name || '选择分组' }}</span>
                 <ChevronDown :size="14" class="group-select-arrow" :class="{ open: showGroupDropdown }" />
               </div>
@@ -121,7 +113,6 @@ async function handleSubmit() {
                   class="group-select-option"
                   @click.stop="selectGroup(group.id)"
                 >
-                  <span class="group-select-dot" :style="{ backgroundColor: group.color }"></span>
                   <span>{{ group.name }}</span>
                 </div>
               </div>
@@ -189,7 +180,7 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 150;
   animation: fade-in 200ms ease-out;
 }
 
@@ -203,11 +194,6 @@ async function handleSubmit() {
   position: relative;
   box-shadow: var(--shadow-lg);
   animation: bounce 300ms var(--ease-bounce);
-}
-
-.dialog-accent {
-  height: 4px;
-  width: 100%;
 }
 
 .dialog-header {
@@ -360,13 +346,6 @@ async function handleSubmit() {
 
 .group-select-trigger:hover {
   border-color: var(--color-border-hover);
-}
-
-.group-select-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 
 .group-select-name {

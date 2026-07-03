@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useViewStore } from '@renderer/stores/view'
-import { RefreshCw, ExternalLink, Home, Minus, Square, X, Trash2 } from 'lucide-vue-next'
+import { useAppStore } from '@renderer/stores/app'
+import { RefreshCw, ExternalLink, Home, Minus, Square, X, Trash2, Search } from 'lucide-vue-next'
 
 const viewStore = useViewStore()
+const appStore = useAppStore()
 
 const isMaximized = ref(false)
 const showClearCacheConfirm = ref(false)
 const showGoHomeConfirm = ref(false)
 
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+const dockOpen = computed(() => appStore.topDockOpen)
+
+watch(dockOpen, (val) => {
+  if (val) {
+    nextTick(() => {
+      searchInputRef.value?.focus()
+    })
+  } else {
+    appStore.dockSearchQuery = ''
+  }
+})
+
 async function handleMinimize() {
+  appStore.topDockOpen = false
+  appStore.dockSearchQuery = ''
   await window.api.window.minimize()
 }
 
@@ -55,7 +73,6 @@ function handleOpenExternal() {
 }
 
 function handleGoHomeClick() {
-  // Already on home page, no action needed
   const view = viewStore.activeView
   if (!view?.url) return
   window.api.webview.hideAll()
@@ -82,6 +99,25 @@ function cancelGoHome() {
 <template>
   <div class="webview-bar">
     <div class="bar-left"></div>
+
+    <!-- Center search - visible when dock is open -->
+    <div v-if="dockOpen" class="search-area">
+      <div class="search-box">
+        <Search :size="14" class="search-icon" />
+        <input
+          ref="searchInputRef"
+          v-model="appStore.dockSearchQuery"
+          type="text"
+          class="search-input"
+          placeholder="搜索视图..."
+          @keydown.escape="appStore.dockSearchQuery = ''"
+        />
+        <button v-if="appStore.dockSearchQuery" class="search-clear" @click="appStore.dockSearchQuery = ''">
+          <X :size="12" />
+        </button>
+      </div>
+    </div>
+
     <div class="bar-actions">
       <button class="action-btn" @click="handleRefresh" title="刷新">
         <RefreshCw :size="14" />
@@ -151,7 +187,8 @@ function cancelGoHome() {
 }
 
 .webview-bar .bar-left,
-.webview-bar .bar-actions {
+.webview-bar .bar-actions,
+.webview-bar .search-area {
   -webkit-app-region: no-drag;
 }
 
@@ -163,6 +200,70 @@ function cancelGoHome() {
   min-width: 0;
   overflow: hidden;
   -webkit-app-region: no-drag;
+}
+
+/* Search area */
+.search-area {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  width: 240px;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.search-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.search-icon {
+  color: var(--color-text-placeholder);
+  flex-shrink: 0;
+}
+
+.search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.search-input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.search-clear {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-placeholder);
+  background: var(--color-primary-light);
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 150ms ease;
+}
+
+.search-clear:hover {
+  background: var(--color-primary);
+  color: white;
 }
 
 .bar-actions {

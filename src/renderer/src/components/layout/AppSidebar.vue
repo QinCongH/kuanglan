@@ -23,7 +23,7 @@ function handleAddGroup() {
 }
 
 function handleAddView() {
-  appStore.addViewDialogOpen = true
+  appStore.openAddViewDialog()
 }
 
 function handleSettings() {

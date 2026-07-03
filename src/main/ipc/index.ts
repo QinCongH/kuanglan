@@ -11,7 +11,8 @@ import {
   getSetting,
   setSetting,
   getResourcePath,
-  setResourcePath
+  setResourcePath,
+  reinitializeDataPath
 } from '../database'
 
 export function registerIpcHandlers(): void {
@@ -48,5 +49,8 @@ export function registerIpcHandlers(): void {
       title: '选择资源目录'
     })
     return result?.[0] ?? null
+  })
+  ipcMain.handle('setting:resource-path:reinitialize', () => {
+    return reinitializeDataPath()
   })
 }

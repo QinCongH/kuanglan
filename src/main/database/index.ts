@@ -110,7 +110,7 @@ function writeData(data: AppData): void {
   writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf-8')
 }
 
-export function loadData(): { groups: Group[]; views: View[] } {
+export function loadData(): AppData {
   const data = readData()
   // Ensure default group exists
   if (!data.groups.some(g => g.is_default === 1)) {
@@ -128,7 +128,7 @@ export function loadData(): { groups: Group[]; views: View[] } {
     data.groups.unshift(defaultGroup)
     writeData(data)
   }
-  return { groups: data.groups, views: data.views }
+  return { groups: data.groups, views: data.views, version: data.version }
 }
 
 // Group CRUD
@@ -252,8 +252,16 @@ export function ensureResourcePath(dirPath: string): void {
   if (!existsSync(dirPath)) {
     mkdirSync(dirPath, { recursive: true })
   }
-  const defaultDir = join(dirPath, '默认目录')
-  if (!existsSync(defaultDir)) {
-    mkdirSync(defaultDir, { recursive: true })
+}
+
+export function reinitializeDataPath(): AppData {
+  const config = readConfig()
+  if (config.resourcePath && existsSync(config.resourcePath)) {
+    dataPath = config.resourcePath
+  } else {
+    dataPath = defaultConfigDir()
   }
+  ensureDir(dataPath)
+  dbPath = join(dataPath, DB_FILE)
+  return loadData()
 }

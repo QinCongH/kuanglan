@@ -41,9 +41,11 @@ const api = {
     canGoBack: (viewId: string) => ipcRenderer.invoke('webview:can-go-back', viewId),
     goBack: (viewId: string) => ipcRenderer.invoke('webview:go-back', viewId),
     remove: (viewId: string) => ipcRenderer.invoke('webview:remove', viewId),
+    forceCleanup: (viewId: string) => ipcRenderer.invoke('webview:force-cleanup', viewId),
     clearCache: (viewId: string) => ipcRenderer.invoke('webview:clear-cache', viewId),
     setSidebarWidth: (width: number) => ipcRenderer.invoke('webview:set-sidebar-width', width),
-    hideAll: () => ipcRenderer.invoke('webview:hide-all')
+    hideAll: () => ipcRenderer.invoke('webview:hide-all'),
+    cleanupAll: () => ipcRenderer.invoke('webview:cleanup-all')
   },
   // Navigation
   navigate: {
@@ -90,7 +92,8 @@ const api = {
     get: () => ipcRenderer.invoke('setting:resource-path:get'),
     set: (path: string) => ipcRenderer.invoke('setting:resource-path:set', path),
     open: () => ipcRenderer.invoke('setting:resource-path:open'),
-    select: () => ipcRenderer.invoke('setting:resource-path:select')
+    select: () => ipcRenderer.invoke('setting:resource-path:select'),
+    reinitialize: () => ipcRenderer.invoke('setting:resource-path:reinitialize')
   }
 }
 

@@ -1,6 +1,14 @@
 import { BrowserWindow, ipcMain, WebContentsView } from 'electron'
 
 const viewMap = new Map<string, WebContentsView>()
+
+interface ProcessInfo {
+  pid: number
+  url: string
+}
+
+const processMap = new Map<string, ProcessInfo>()
+
 let mainWindow: BrowserWindow | null = null
 let currentSidebarWidth = 72
 let activeViewId: string | null = null
@@ -25,6 +33,19 @@ export function createWebView(viewId: string, url: string): void {
   const wcView = new WebContentsView()
   wcView.webContents.loadURL(url)
 
+  // Track renderer process
+  const pid = wcView.webContents.getProcessId()
+  processMap.set(viewId, { pid, url })
+
+  // Auto-cleanup if renderer crashes or is killed
+  wcView.webContents.on('render-process-gone', () => {
+    processMap.delete(viewId)
+    viewMap.delete(viewId)
+    if (activeViewId === viewId) {
+      activeViewId = null
+    }
+  })
+
   // Forward Ctrl+Tab from WebContentsView to focus renderer
   wcView.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.control && input.key === 'Tab') {
@@ -32,10 +53,6 @@ export function createWebView(viewId: string, url: string): void {
       mainWindow!.webContents.focus()
     }
   })
-
-  for (const view of viewMap.values()) {
-    view.setVisible(false)
-  }
 
   updateViewBounds(wcView)
   wcView.setVisible(true)
@@ -70,15 +87,98 @@ export function hideAllViews(): void {
   }
 }
 
+export function cleanupAllViews(): void {
+  for (const [viewId] of viewMap) {
+    destroyView(viewId)
+  }
+  activeViewId = null
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function destroyView(viewId: string): void {
+  const wcView = viewMap.get(viewId)
+  const processInfo = processMap.get(viewId)
+
+  if (wcView && mainWindow) {
+    try {
+      mainWindow.contentView.removeChildView(wcView)
+    } catch {
+      // Already removed
+    }
+    try {
+      wcView.webContents.close()
+    } catch {
+      // Already destroyed
+    }
+    viewMap.delete(viewId)
+    processMap.delete(viewId)
+
+    // Verify process cleanup via PID
+    if (processInfo) {
+      const pid = processInfo.pid
+      setTimeout(() => {
+        if (isProcessAlive(pid)) {
+          try {
+            process.kill(pid)
+          } catch {
+            // Process already gone
+          }
+        }
+      }, 500)
+    }
+  }
+
+  if (activeViewId === viewId) {
+    activeViewId = null
+  }
+}
+
 export function removeView(viewId: string): void {
+  destroyView(viewId)
+}
+
+export function forceCleanupView(viewId: string): void {
+  const processInfo = processMap.get(viewId)
+
+  // Force kill the renderer process by PID
+  if (processInfo) {
+    const pid = processInfo.pid
+    if (isProcessAlive(pid)) {
+      try {
+        process.kill(pid)
+      } catch {
+        // Process already gone
+      }
+    }
+    processMap.delete(viewId)
+  }
+
+  // Remove from viewMap if still present
   const wcView = viewMap.get(viewId)
   if (wcView && mainWindow) {
-    mainWindow.contentView.removeChildView(wcView)
-    wcView.webContents.close()
-    viewMap.delete(viewId)
-    if (activeViewId === viewId) {
-      activeViewId = null
+    try {
+      mainWindow.contentView.removeChildView(wcView)
+    } catch {
+      // Already removed
     }
+    try {
+      wcView.webContents.close()
+    } catch {
+      // Already destroyed
+    }
+    viewMap.delete(viewId)
+  }
+
+  if (activeViewId === viewId) {
+    activeViewId = null
   }
 }
 
@@ -199,6 +299,10 @@ export function registerWebViewIpc(): void {
     removeView(viewId)
   })
 
+  ipcMain.handle('webview:force-cleanup', (_e, viewId: string) => {
+    forceCleanupView(viewId)
+  })
+
   ipcMain.handle('webview:clear-cache', (_e, viewId: string) => {
     clearViewCache(viewId)
   })
@@ -210,5 +314,9 @@ export function registerWebViewIpc(): void {
 
   ipcMain.handle('webview:hide-all', () => {
     hideAllViews()
+  })
+
+  ipcMain.handle('webview:cleanup-all', () => {
+    cleanupAllViews()
   })
 }

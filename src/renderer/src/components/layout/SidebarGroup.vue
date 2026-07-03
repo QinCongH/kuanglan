@@ -72,6 +72,8 @@ async function confirmDelete(viewId: string) {
   await viewStore.updateView(viewId, { visible: 0 })
   // Destroy the WebContentsView to free memory
   window.api.webview.remove(viewId)
+  // Force cleanup any lingering renderer process
+  window.api.webview.forceCleanup(viewId)
   // If this was the active view, switch to another visible view
   if (viewStore.activeViewId === viewId) {
     const nextVisible = viewStore.views.find(v => v.visible === 1 && v.id !== viewId)
@@ -145,7 +147,7 @@ async function onDragEnd() {
       <div
         v-if="appStore.sidebarExpanded"
         class="view-item add-view-btn"
-        @click="appStore.addViewDialogOpen = true"
+        @click="appStore.openAddViewDialog(props.group.id)"
       >
         <div class="view-icon" style="border-style: dashed;">
           <span class="view-initials" style="font-size: 16px;">+</span>

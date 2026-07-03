@@ -4,6 +4,7 @@ import { useTheme } from '@renderer/composables/useTheme'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
+import type { PrefillViewData } from '@renderer/stores/app'
 import AppSidebar from '@renderer/components/layout/AppSidebar.vue'
 import WebViewBar from '@renderer/components/layout/WebViewBar.vue'
 import ViewContainer from '@renderer/components/views/ViewContainer.vue'
@@ -14,6 +15,7 @@ import SettingsPage from '@renderer/components/settings/SettingsPage.vue'
 import ResourcePathSetup from '@renderer/components/setup/ResourcePathSetup.vue'
 import ToastNotification from '@renderer/components/common/ToastNotification.vue'
 import TopViewDock from '@renderer/components/layout/TopViewDock.vue'
+import ConfirmDialog from '@renderer/components/dialogs/ConfirmDialog.vue'
 
 const { initTheme } = useTheme()
 const groupStore = useGroupStore()
@@ -28,6 +30,37 @@ function getOrigin(url: string): string {
     return new URL(url).origin
   } catch {
     return ''
+  }
+}
+
+function parseKlClipboard(text: string): PrefillViewData | null {
+  if (!text.startsWith('kl://')) return null
+  try {
+    const base64 = text.slice(5)
+    const json = new TextDecoder().decode(Uint8Array.from(atob(base64), c => c.charCodeAt(0)))
+    const data = JSON.parse(json)
+    if (!data.n || !data.u) return null
+    return { name: data.n, url: data.u, icon: data.i ?? '', groupName: data.g ?? '' }
+  } catch {
+    return null
+  }
+}
+
+let lastCheckedClipboard = ''
+
+async function checkClipboardForView() {
+  try {
+    const text = await navigator.clipboard.readText()
+    // Skip if we already checked this exact clipboard content
+    if (text === lastCheckedClipboard) return
+    lastCheckedClipboard = text
+    const prefill = parseKlClipboard(text)
+    if (!prefill) return
+    // Skip if a view with the same URL already exists
+    if (viewStore.views.some(v => v.url === prefill.url)) return
+    appStore.openAddViewDialog(undefined, prefill)
+  } catch {
+    // Clipboard access denied or unavailable
   }
 }
 
@@ -79,6 +112,13 @@ onMounted(async () => {
 
   initTheme()
 
+  // Check clipboard for view import when page becomes visible
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && appStore.initialized) {
+      checkClipboardForView()
+    }
+  })
+
   // Keyboard navigation: switch views with arrow keys
   // Main process forwards arrow keys via IPC because WebContentsView steals keyboard focus
   window.api.keyboard.onArrow((key) => {
@@ -116,6 +156,7 @@ onMounted(async () => {
     <EditViewDialog />
     <ToastNotification />
     <TopViewDock />
+    <ConfirmDialog />
   </div>
 </template>
 
