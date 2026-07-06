@@ -94,6 +94,10 @@ const api = {
     open: () => ipcRenderer.invoke('setting:resource-path:open'),
     select: () => ipcRenderer.invoke('setting:resource-path:select'),
     reinitialize: () => ipcRenderer.invoke('setting:resource-path:reinitialize')
+  },
+  // Icon fetch (main process bypasses CORS)
+  icon: {
+    fetch: (url: string) => ipcRenderer.invoke('icon:fetch', url)
   }
 }
 

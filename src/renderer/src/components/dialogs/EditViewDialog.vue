@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
+import { fetchAndCacheIcon } from '@renderer/composables/useIconCache'
 import { X, ChevronDown, Pencil } from 'lucide-vue-next'
 
 const groupStore = useGroupStore()
@@ -37,10 +38,10 @@ watch(isOpen, (open) => {
 
 watch(url, async (newUrl) => {
   if (!newUrl.trim()) return
-  // Try to fetch favicon automatically
   const favicon = await fetchFavicon(newUrl)
   if (favicon && !icon.value) {
     icon.value = favicon
+    fetchAndCacheIcon(favicon)
   }
 })
 

@@ -27,6 +27,10 @@ export interface ConfirmDialogState {
   onConfirm: (() => void) | null
 }
 
+export interface ImportViewDialog {
+  open: boolean
+}
+
 export const useAppStore = defineStore('app', () => {
   const sidebarExpanded = ref(false)
   const settingsOpen = ref(false)
@@ -61,6 +65,11 @@ export const useAppStore = defineStore('app', () => {
     message: '',
     confirmText: '确认',
     onConfirm: null
+  })
+
+  // Import view dialog
+  const importViewDialog = ref<ImportViewDialog>({
+    open: false
   })
 
   function toggleSidebar() {
@@ -101,6 +110,14 @@ export const useAppStore = defineStore('app', () => {
     confirmDialog.value.open = false
   }
 
+  function openImportViewDialog() {
+    importViewDialog.value = { open: true }
+  }
+
+  function closeImportViewDialog() {
+    importViewDialog.value.open = false
+  }
+
   return {
     sidebarExpanded,
     settingsOpen,
@@ -115,6 +132,7 @@ export const useAppStore = defineStore('app', () => {
     externalLinkDialog,
     editViewDialog,
     confirmDialog,
+    importViewDialog,
     toggleSidebar,
     setInitialized,
     openAddViewDialog,
@@ -123,6 +141,8 @@ export const useAppStore = defineStore('app', () => {
     openEditViewDialog,
     closeEditViewDialog,
     openConfirmDialog,
-    closeConfirmDialog
+    closeConfirmDialog,
+    openImportViewDialog,
+    closeImportViewDialog
   }
 })

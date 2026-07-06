@@ -42,7 +42,7 @@ function handleSettings() {
     </div>
 
     <!-- Group list -->
-    <div class="sidebar-groups">
+    <div class="sidebar-groups"  :style="{gap:!appStore.sidebarExpanded?'0px':'auto'}">
       <div v-if="viewStore.visibleViews.length === 0 && appStore.sidebarExpanded" class="sidebar-empty">
         <p class="empty-guide">鼠标移动到顶部添加视图</p>
       </div>

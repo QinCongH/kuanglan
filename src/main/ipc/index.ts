@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, BrowserWindow, net } from 'electron'
 import {
   createGroup,
   updateGroup,
@@ -52,5 +52,19 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('setting:resource-path:reinitialize', () => {
     return reinitializeDataPath()
+  })
+
+  // Icon fetch handler - fetches icon in main process to bypass CORS
+  ipcMain.handle('icon:fetch', async (_e, url: string) => {
+    try {
+      const response = await net.fetch(url)
+      if (!response.ok) return null
+      const buffer = await response.arrayBuffer()
+      const contentType = response.headers.get('content-type') || 'image/png'
+      const base64 = Buffer.from(buffer).toString('base64')
+      return `data:${contentType};base64,${base64}`
+    } catch {
+      return null
+    }
   })
 }

@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import { RefreshCw, ExternalLink, Home, Minus, Square, X, Trash2, Search } from 'lucide-vue-next'
+import { RefreshCw, ExternalLink, Home, Minus, Square, X, Trash2, Search, Link } from 'lucide-vue-next'
 
 const viewStore = useViewStore()
 const appStore = useAppStore()
@@ -119,6 +119,9 @@ function cancelGoHome() {
     </div>
 
     <div class="bar-actions">
+      <button class="action-btn" @click="appStore.openImportViewDialog()" title="导入视图">
+        <Link :size="14" />
+      </button>
       <button class="action-btn" @click="handleRefresh" title="刷新">
         <RefreshCw :size="14" />
       </button>
@@ -186,7 +189,6 @@ function cancelGoHome() {
   position: relative;
 }
 
-.webview-bar .bar-left,
 .webview-bar .bar-actions,
 .webview-bar .search-area {
   -webkit-app-region: no-drag;
@@ -199,7 +201,6 @@ function cancelGoHome() {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  -webkit-app-region: no-drag;
 }
 
 /* Search area */

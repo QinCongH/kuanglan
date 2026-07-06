@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
+import { fetchAndCacheIcon } from '@renderer/composables/useIconCache'
 import { X, ChevronDown, Sparkles } from 'lucide-vue-next'
 
 const groupStore = useGroupStore()
@@ -51,6 +52,12 @@ const recommendedSites: RecommendedSite[] = [
 
 const isOpen = computed(() => appStore.addViewDialogOpen)
 
+onMounted(() => {
+  recommendedSites.forEach(site => {
+    if (site.favicon) fetchAndCacheIcon(site.favicon)
+  })
+})
+
 const selectedGroup = computed(() =>
   groupStore.groups.find(g => g.id === selectedGroupId.value)
 )
@@ -83,6 +90,7 @@ watch(url, async (newUrl) => {
   const favicon = await fetchFavicon(newUrl)
   if (favicon) {
     icon.value = favicon
+    fetchAndCacheIcon(favicon)
   }
 })
 

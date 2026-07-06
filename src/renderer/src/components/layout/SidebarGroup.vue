@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import { ChevronRight, Trash2 } from 'lucide-vue-next'
+import { getCachedIcon, fetchAndCacheIcon } from '@renderer/composables/useIconCache'
+// import { useToast } from '@renderer/composables/useToast'
+import { ChevronRight, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import type { Group } from '@renderer/stores/group'
 
@@ -14,6 +16,7 @@ const props = defineProps<{
 const groupStore = useGroupStore()
 const viewStore = useViewStore()
 const appStore = useAppStore()
+// const { show: showToast } = useToast()
 
 const isExpanded = ref(props.group.collapsed === 0)
 
@@ -21,10 +24,38 @@ const isExpanded = ref(props.group.collapsed === 0)
 const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const longPressActiveId = ref<string | null>(null)
 const longPressTriggered = ref(false)
+const shakingViewId = ref<string | null>(null)
 
-const groupViews = computed(() =>
+const visibleGroupViews = computed(() =>
   viewStore.getViewsByGroup(props.group.id).filter(v => v.visible === 1)
 )
+
+const hiddenGroupViews = computed(() =>
+  viewStore.getViewsByGroup(props.group.id).filter(v => v.visible === 0)
+)
+
+const allGroupViews = computed(() =>
+  viewStore.getViewsByGroup(props.group.id)
+)
+
+const iconSrcMap = ref<Record<string, string>>({})
+
+function resolveIcon(iconUrl: string) {
+  if (!iconUrl || iconSrcMap.value[iconUrl]) return
+  getCachedIcon(iconUrl).then((cached) => {
+    if (cached) {
+      iconSrcMap.value[iconUrl] = cached
+      return
+    }
+    fetchAndCacheIcon(iconUrl).then((result) => {
+      iconSrcMap.value[iconUrl] = result
+    })
+  })
+}
+
+watch(allGroupViews, (views) => {
+  views.forEach(v => resolveIcon(v.icon))
+}, { immediate: true })
 
 function toggleExpand() {
   isExpanded.value = !isExpanded.value
@@ -87,8 +118,48 @@ async function confirmDelete(viewId: string) {
   longPressTriggered.value = false
 }
 
+async function toggleVisibility(viewId: string) {
+  const view = viewStore.views.find(v => v.id === viewId)
+  if (!view) return
+
+  if (view.visible === 1) {
+    await viewStore.updateView(viewId, { visible: 0 })
+    window.api.webview.remove(viewId)
+    window.api.webview.forceCleanup(viewId)
+    if (viewStore.activeViewId === viewId) {
+      const nextVisible = viewStore.views.find(v => v.visible === 1 && v.id !== viewId)
+      if (nextVisible) {
+        viewStore.setActiveView(nextVisible.id)
+      } else {
+        viewStore.activeViewId = null
+      }
+    }
+  } else {
+    if (viewStore.visibleViewCount >= 8) {
+      shakingViewId.value = viewId
+      setTimeout(() => { shakingViewId.value = null }, 500)
+      // showToast('最多只能保留8个常用视图，请先隐藏一个。')
+      return
+    }
+    await viewStore.updateView(viewId, { visible: 1 })
+  }
+}
+
+async function handleHiddenViewClick(viewId: string) {
+  if (viewStore.visibleViewCount >= 8) {
+    shakingViewId.value = viewId
+    setTimeout(() => { shakingViewId.value = null }, 500)
+    // showToast('最多只能保留8个常用视图，请先隐藏一个。')
+    return
+  }
+  await viewStore.updateView(viewId, { visible: 1 })
+  viewStore.setActiveView(viewId)
+  const activeView = viewStore.activeView
+  if (activeView) window.api.webview.create(activeView.id, activeView.url)
+}
+
 async function onDragEnd() {
-  const views = groupViews.value
+  const views = visibleGroupViews.value
   for (let i = 0; i < views.length; i++) {
     if (views[i].sort_order !== i) {
       await viewStore.updateView(views[i].id, { sort_order: i })
@@ -109,9 +180,9 @@ async function onDragEnd() {
     </div>
 
     <!-- View List -->
-    <div v-if="appStore.sidebarExpanded ? isExpanded : true" class="group-views" :class="{ collapsed: !appStore.sidebarExpanded }">
+    <div v-if="appStore.sidebarExpanded ? isExpanded : true" :style="{padding:!appStore.sidebarExpanded?'0px':'auto'}" class="group-views" :class="{ collapsed: !appStore.sidebarExpanded }">
       <draggable
-        :list="groupViews"
+        :list="visibleGroupViews"
         :disabled="!appStore.sidebarExpanded"
         item-key="id"
         class="draggable-list"
@@ -121,6 +192,7 @@ async function onDragEnd() {
         <template #item="{ element: view }">
           <div
             class="view-item"
+            :style="{marginBottom:!appStore.sidebarExpanded?'5px':'auto'}"
             :class="{ active: viewStore.activeViewId === view.id, 'long-press-active': longPressActiveId === view.id }"
             @click="handleViewClick(view.id)"
             @mousedown="handleMouseDown(view.id)"
@@ -129,7 +201,7 @@ async function onDragEnd() {
             :title="longPressActiveId === view.id ? undefined : '长按可移除视图'"
           >
             <div class="view-icon" :class="{ 'delete-mode': longPressActiveId === view.id }">
-              <img v-if="view.icon" :src="view.icon" class="view-icon-img" alt="" />
+              <img v-if="view.icon" :src="iconSrcMap[view.icon] || view.icon" class="view-icon-img" alt="" />
               <span v-else class="view-initials">{{ getViewInitials(view.name) }}</span>
               <button
                 v-if="longPressActiveId === view.id"
@@ -140,12 +212,47 @@ async function onDragEnd() {
               </button>
             </div>
             <span v-if="appStore.sidebarExpanded" class="view-name">{{ view.name }}</span>
+            <button
+              v-if="appStore.sidebarExpanded"
+              class="eye-toggle"
+              @click.stop="toggleVisibility(view.id)"
+              title="隐藏"
+            >
+              <Eye :size="14" />
+            </button>
           </div>
         </template>
       </draggable>
+
+      <!-- Hidden views section - only shown when sidebar is expanded -->
+      <div v-if="appStore.sidebarExpanded && hiddenGroupViews.length > 0" class="hidden-views-section">
+        <div class="hidden-section-label">已隐藏</div>
+        <div
+          v-for="view in hiddenGroupViews"
+          :key="view.id"
+          class="view-item hidden-view"
+          :class="{ shaking: shakingViewId === view.id }"
+          @click="handleHiddenViewClick(view.id)"
+        >
+          <div class="view-icon">
+            <img v-if="view.icon" :src="iconSrcMap[view.icon] || view.icon" class="view-icon-img" alt="" />
+            <span v-else class="view-initials">{{ getViewInitials(view.name) }}</span>
+          </div>
+          <span class="view-name dimmed">{{ view.name }}</span>
+          <button
+            class="eye-toggle"
+            @click.stop="toggleVisibility(view.id)"
+            title="显示"
+          >
+            <EyeOff :size="14" />
+          </button>
+        </div>
+      </div>
+
       <!-- Add view button inside group -->
       <div
         v-if="appStore.sidebarExpanded"
+         :style="{marginBottom:!appStore.sidebarExpanded?'5px':'auto'}"
         class="view-item add-view-btn"
         @click="appStore.openAddViewDialog(props.group.id)"
       >
@@ -352,5 +459,62 @@ async function onDragEnd() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.view-name.dimmed {
+  color: var(--color-text-placeholder);
+}
+
+.hidden-view {
+  opacity: 0.6;
+}
+
+.hidden-view:hover {
+  opacity: 0.9;
+}
+
+.hidden-view.shaking {
+  animation: shake 400ms ease;
+}
+
+.eye-toggle {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-placeholder);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0;
+}
+
+.view-item:hover .eye-toggle {
+  opacity: 1;
+}
+
+.eye-toggle:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.hidden-views-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-top: 1px dashed var(--color-border);
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+}
+
+.hidden-section-label {
+  font-size: var(--font-xs);
+  color: var(--color-text-placeholder);
+  padding: var(--space-1) var(--space-2);
 }
 </style>

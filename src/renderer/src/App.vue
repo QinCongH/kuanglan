@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useTheme } from '@renderer/composables/useTheme'
+import { cacheAllIcons } from '@renderer/composables/useIconCache'
+import { useToast } from '@renderer/composables/useToast'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
@@ -16,11 +18,13 @@ import ResourcePathSetup from '@renderer/components/setup/ResourcePathSetup.vue'
 import ToastNotification from '@renderer/components/common/ToastNotification.vue'
 import TopViewDock from '@renderer/components/layout/TopViewDock.vue'
 import ConfirmDialog from '@renderer/components/dialogs/ConfirmDialog.vue'
+import ImportViewDialog from '@renderer/components/dialogs/ImportViewDialog.vue'
 
 const { initTheme } = useTheme()
 const groupStore = useGroupStore()
 const viewStore = useViewStore()
 const appStore = useAppStore()
+const { show: showToast } = useToast()
 
 const viewContainerRef = ref<InstanceType<typeof ViewContainer> | null>(null)
 const isSetupWindow = window.location.hash === '#setup'
@@ -34,7 +38,16 @@ function getOrigin(url: string): string {
 }
 
 function parseKlClipboard(text: string): PrefillViewData | null {
-  if (!text.startsWith('kl://')) return null
+  if (!text.startsWith('kl://')) {
+    // Try parsing as a plain URL
+    try {
+      const url = new URL(text.trim())
+      const name = url.hostname
+      return { name, url: text.trim(), icon: '', groupName: '' }
+    } catch {
+      return null
+    }
+  }
   try {
     const base64 = text.slice(5)
     const json = new TextDecoder().decode(Uint8Array.from(atob(base64), c => c.charCodeAt(0)))
@@ -51,14 +64,28 @@ let lastCheckedClipboard = ''
 async function checkClipboardForView() {
   try {
     const text = await navigator.clipboard.readText()
-    // Skip if we already checked this exact clipboard content
     if (text === lastCheckedClipboard) return
     lastCheckedClipboard = text
     const prefill = parseKlClipboard(text)
     if (!prefill) return
-    // Skip if a view with the same URL already exists
-    if (viewStore.views.some(v => v.url === prefill.url)) return
-    appStore.openAddViewDialog(undefined, prefill)
+    await navigator.clipboard.writeText('')
+    lastCheckedClipboard = ''
+
+    const groupId = groupStore.defaultGroup?.id
+    if (!groupId) return
+
+    await viewStore.createView({
+      group_id: groupId,
+      name: prefill.name,
+      url: prefill.url,
+      icon: prefill.icon,
+      visible: 0,
+      sort_order: viewStore.views.filter(v => v.group_id === groupId).length,
+      bounds: '{}'
+    })
+
+    appStore.showDockHint = true
+    showToast('视图已添加到默认分组')
   } catch {
     // Clipboard access denied or unavailable
   }
@@ -87,6 +114,12 @@ onMounted(async () => {
     }
 
     appStore.setInitialized()
+
+    // Warm the icon cache for all existing views
+    cacheAllIcons(data.views.map((v: { icon: string }) => v.icon))
+
+    // Check clipboard for view import on initial load
+    checkClipboardForView()
   })
 
   // Listen for navigation events from main process (e.g., new window requests)
@@ -122,7 +155,7 @@ onMounted(async () => {
   // Keyboard navigation: switch views with arrow keys
   // Main process forwards arrow keys via IPC because WebContentsView steals keyboard focus
   window.api.keyboard.onArrow((key) => {
-    if (appStore.settingsOpen || appStore.addViewDialogOpen || appStore.addGroupDialogOpen || appStore.externalLinkDialog.open || appStore.editViewDialog.open) return
+    if (appStore.settingsOpen || appStore.addViewDialogOpen || appStore.addGroupDialogOpen || appStore.externalLinkDialog.open || appStore.editViewDialog.open || appStore.importViewDialog.open) return
 
     const visibleViews = viewStore.visibleViews
     if (visibleViews.length === 0) return
@@ -157,6 +190,7 @@ onMounted(async () => {
     <ToastNotification />
     <TopViewDock />
     <ConfirmDialog />
+    <ImportViewDialog />
   </div>
 </template>
 

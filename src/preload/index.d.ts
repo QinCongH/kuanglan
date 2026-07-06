@@ -137,6 +137,9 @@ declare global {
         select: () => Promise<string | null>
         reinitialize: () => Promise<{ groups: Group[]; views: View[] }>
       }
+      icon: {
+        fetch: (url: string) => Promise<string | null>
+      }
     }
   }
 }

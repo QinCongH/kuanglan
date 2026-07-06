@@ -4,6 +4,7 @@ import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
 import { useGroupStore } from '@renderer/stores/group'
 import { useToast } from '@renderer/composables/useToast'
+import { getCachedIcon, fetchAndCacheIcon } from '@renderer/composables/useIconCache'
 
 const viewStore = useViewStore()
 const appStore = useAppStore()
@@ -28,6 +29,25 @@ const filteredViews = computed(() => {
     groupStore.groups.find(g => g.id === v.group_id)?.name.toLowerCase().includes(q)
   )
 })
+
+const iconSrcMap = ref<Record<string, string>>({})
+
+function resolveIcon(iconUrl: string) {
+  if (!iconUrl || iconSrcMap.value[iconUrl]) return
+  getCachedIcon(iconUrl).then((cached) => {
+    if (cached) {
+      iconSrcMap.value[iconUrl] = cached
+      return
+    }
+    fetchAndCacheIcon(iconUrl).then((result) => {
+      iconSrcMap.value[iconUrl] = result
+    })
+  })
+}
+
+watch(filteredViews, (views) => {
+  views.forEach(v => resolveIcon(v.icon))
+}, { immediate: true })
 
 const anyDialogOpen = computed(() =>
   appStore.settingsOpen ||
@@ -245,7 +265,7 @@ function handleListMouseLeave() {
           @click="handleCardClick(view)"
         >
           <div class="dock-card-icon">
-            <img v-if="view.icon" :src="view.icon" class="dock-icon-img" alt="" />
+            <img v-if="view.icon" :src="iconSrcMap[view.icon] || view.icon" class="dock-icon-img" alt="" />
             <span v-else class="dock-icon-initials">{{ getViewInitials(view.name) }}</span>
           </div>
         </div>

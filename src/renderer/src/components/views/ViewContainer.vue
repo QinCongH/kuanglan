@@ -16,7 +16,8 @@ const dialogOpen = computed(() =>
   appStore.addViewDialogOpen ||
   appStore.addGroupDialogOpen ||
   appStore.externalLinkDialog.open ||
-  appStore.editViewDialog.open
+  appStore.editViewDialog.open ||
+  appStore.importViewDialog.open
 )
 
 function syncView(viewId: string | null) {

@@ -54,12 +54,12 @@ export function createWebView(viewId: string, url: string): void {
     }
   })
 
+  // Set activeViewId before updateViewBounds so setDockVisible can find the correct view
+  activeViewId = viewId
+  viewMap.set(viewId, wcView)
+  mainWindow.contentView.addChildView(wcView)
   updateViewBounds(wcView)
   wcView.setVisible(true)
-
-  mainWindow.contentView.addChildView(wcView)
-  viewMap.set(viewId, wcView)
-  activeViewId = viewId
 }
 
 export function showView(viewId: string): void {
@@ -74,11 +74,13 @@ export function showView(viewId: string): void {
   if (targetView) {
     mainWindow.contentView.removeChildView(targetView)
     mainWindow.contentView.addChildView(targetView)
+    // Set activeViewId before updateViewBounds so setDockVisible can find the correct view
+    activeViewId = viewId
     targetView.setVisible(true)
     updateViewBounds(targetView)
+  } else {
+    activeViewId = viewId
   }
-
-  activeViewId = viewId
 }
 
 export function hideAllViews(): void {
@@ -219,10 +221,9 @@ const DOCK_HEIGHT = 56
 
 export function setDockVisible(visible: boolean): void {
   dockVisible = visible
-  // Adjust active view bounds to make room for dock
-  const activeView = activeViewId ? viewMap.get(activeViewId) : null
-  if (activeView) {
-    updateViewBounds(activeView)
+  // Update bounds for all views so they shift down when dock is visible
+  for (const wcView of viewMap.values()) {
+    updateViewBounds(wcView)
   }
 }
 
