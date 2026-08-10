@@ -3,7 +3,13 @@ import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'elec
 import { join } from 'path'
 import { initDataDir, loadData, getResourcePath, setResourcePath } from './database'
 import { registerIpcHandlers } from './ipc'
-import { setMainWindow, registerWebViewIpc, resizeAllViews, getActiveWebView, setDockVisible } from './webview-manager'
+import {
+  setMainWindow,
+  registerWebViewIpc,
+  resizeAllViews,
+  getActiveWebView,
+  setDockVisible
+} from './webview-manager'
 import { showResourcePathSetup } from './resource-path-setup'
 
 let mainWindow: BrowserWindow | null = null
@@ -64,6 +70,12 @@ function createWindow(): void {
     resizeAllViews()
   })
 
+  // When the window is minimized, notify the renderer so the quick card dock
+  // (.dock-list) hides by default instead of staying open after restoring.
+  mainWindow.on('minimize', () => {
+    mainWindow?.webContents.send('window:minimized')
+  })
+
   // Register window control IPC handlers
   ipcMain.handle('window:minimize', () => {
     mainWindow?.minimize()
@@ -97,99 +109,128 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(async () => {
-  // Set app user model id for windows
-  if (process.platform === 'win32') {
-    app.setAppUserModelId('com.kuang-lan')
-  }
-
-  // Initialize in order
-  initDataDir()
-
-  // Check resource path configuration
-  const resourcePath = getResourcePath()
-  if (!resourcePath || !existsSync(resourcePath)) {
-    const selectedPath = await showResourcePathSetup()
-    if (!selectedPath) {
-      app.quit()
-      return
+// Single instance lock: prevent a second instance from opening (e.g. when the
+// user launches the app again from another Windows virtual desktop or clicks
+// the shortcut while it is already running). The second launch instead focuses
+// the existing window.
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    // Someone tried to run a second instance — focus the existing window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
     }
-    setResourcePath(selectedPath)
-    // Re-initialize data dir to point to the newly configured path
+  })
+
+  app.whenReady().then(async () => {
+    // Set app user model id for windows
+    if (process.platform === 'win32') {
+      app.setAppUserModelId('com.kuang-lan')
+    }
+
+    // Initialize in order
     initDataDir()
-  }
 
-  registerIpcHandlers()
-  registerWebViewIpc()
-  createWindow()
-
-  // Register global shortcuts for view switching (works regardless of focus)
-  globalShortcut.register('Ctrl+Up', () => {
-    mainWindow?.webContents.send('keyboard:arrow', 'ArrowUp')
-  })
-  globalShortcut.register('Ctrl+Down', () => {
-    mainWindow?.webContents.send('keyboard:arrow', 'ArrowDown')
-  })
-
-  // Detect mouse hovering over top bar area to show view dock
-  let dockHoverActive = false
-  let dockPanelVisible = false
-  let dockHoverTimer: ReturnType<typeof setTimeout> | null = null
-  const TOPBAR_HEIGHT = 40
-
-  // Renderer notifies when dock panel is shown/hidden
-  ipcMain.on('dock:panel-visible', (_e, visible: boolean) => {
-    dockPanelVisible = visible
-    setDockVisible(visible)
-  })
-
-  setInterval(() => {
-    if (!mainWindow || mainWindow.isDestroyed()) return
-    // When dock panel is visible, don't interfere - renderer manages hide via mouseleave
-    if (dockPanelVisible) return
-
-    if (mainWindow.isMinimized()) {
-      if (dockHoverActive) {
-        dockHoverActive = false
-        if (dockHoverTimer) { clearTimeout(dockHoverTimer); dockHoverTimer = null }
+    // Check resource path configuration
+    const resourcePath = getResourcePath()
+    if (!resourcePath || !existsSync(resourcePath)) {
+      const selectedPath = await showResourcePathSetup()
+      if (!selectedPath) {
+        app.quit()
+        return
       }
-      return
+      setResourcePath(selectedPath)
+      // Re-initialize data dir to point to the newly configured path
+      initDataDir()
     }
 
-    const cursorPos = screen.getCursorScreenPoint()
-    const winBounds = mainWindow.getBounds()
+    registerIpcHandlers()
+    registerWebViewIpc()
+    createWindow()
 
-    const isInWindow =
-      cursorPos.x >= winBounds.x && cursorPos.x <= winBounds.x + winBounds.width &&
-      cursorPos.y >= winBounds.y && cursorPos.y <= winBounds.y + winBounds.height
+    // Register global shortcuts for view switching (works regardless of focus)
+    globalShortcut.register('Ctrl+Up', () => {
+      mainWindow?.webContents.send('keyboard:arrow', 'ArrowUp')
+    })
+    globalShortcut.register('Ctrl+Down', () => {
+      mainWindow?.webContents.send('keyboard:arrow', 'ArrowDown')
+    })
 
-    const isInTopBar =
-      isInWindow &&
-      cursorPos.y >= winBounds.y &&
-      cursorPos.y <= winBounds.y + TOPBAR_HEIGHT &&
-      cursorPos.x >= winBounds.x + winBounds.width * 0.3 &&
-      cursorPos.x <= winBounds.x + winBounds.width * 0.7
+    // Detect mouse hovering over top bar area to show view dock
+    let dockHoverActive = false
+    let dockPanelVisible = false
+    let dockHoverTimer: ReturnType<typeof setTimeout> | null = null
+    const TOPBAR_HEIGHT = 40
 
-    if (isInTopBar && !dockHoverActive) {
-      dockHoverActive = true
-      dockHoverTimer = setTimeout(() => {
-        mainWindow?.webContents.send('dock:hover-enter')
-      }, 300)
-    } else if (!isInTopBar && dockHoverActive) {
-      dockHoverActive = false
-      if (dockHoverTimer) { clearTimeout(dockHoverTimer); dockHoverTimer = null }
-    } else if (!isInWindow && dockHoverActive) {
-      dockHoverActive = false
-      if (dockHoverTimer) { clearTimeout(dockHoverTimer); dockHoverTimer = null }
-    }
-  }, 150)
+    // Renderer notifies when dock panel is shown/hidden
+    ipcMain.on('dock:panel-visible', (_e, visible: boolean) => {
+      dockPanelVisible = visible
+      setDockVisible(visible)
+    })
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    setInterval(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      // When dock panel is visible, don't interfere - renderer manages hide via mouseleave
+      if (dockPanelVisible) return
+
+      if (mainWindow.isMinimized()) {
+        if (dockHoverActive) {
+          dockHoverActive = false
+          if (dockHoverTimer) {
+            clearTimeout(dockHoverTimer)
+            dockHoverTimer = null
+          }
+        }
+        return
+      }
+
+      const cursorPos = screen.getCursorScreenPoint()
+      const winBounds = mainWindow.getBounds()
+
+      const isInWindow =
+        cursorPos.x >= winBounds.x &&
+        cursorPos.x <= winBounds.x + winBounds.width &&
+        cursorPos.y >= winBounds.y &&
+        cursorPos.y <= winBounds.y + winBounds.height
+
+      const isInTopBar =
+        isInWindow &&
+        cursorPos.y >= winBounds.y &&
+        cursorPos.y <= winBounds.y + TOPBAR_HEIGHT &&
+        cursorPos.x >= winBounds.x + winBounds.width * 0.3 &&
+        cursorPos.x <= winBounds.x + winBounds.width * 0.7
+
+      if (isInTopBar && !dockHoverActive) {
+        dockHoverActive = true
+        dockHoverTimer = setTimeout(() => {
+          mainWindow?.webContents.send('dock:hover-enter')
+        }, 300)
+      } else if (!isInTopBar && dockHoverActive) {
+        dockHoverActive = false
+        if (dockHoverTimer) {
+          clearTimeout(dockHoverTimer)
+          dockHoverTimer = null
+        }
+      } else if (!isInWindow && dockHoverActive) {
+        dockHoverActive = false
+        if (dockHoverTimer) {
+          clearTimeout(dockHoverTimer)
+          dockHoverTimer = null
+        }
+      }
+    }, 150)
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-})
 
-app.on('window-all-closed', () => {
-  globalShortcut.unregisterAll()
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.on('window-all-closed', () => {
+    globalShortcut.unregisterAll()
+    if (process.platform !== 'darwin') app.quit()
+  })
+}

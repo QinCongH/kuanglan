@@ -3,10 +3,10 @@ import { onMounted, ref } from 'vue'
 import { useTheme } from '@renderer/composables/useTheme'
 import { cacheAllIcons } from '@renderer/composables/useIconCache'
 import { useToast } from '@renderer/composables/useToast'
+import { parseKlLink } from '@renderer/composables/useKlLink'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import type { PrefillViewData } from '@renderer/stores/app'
 import AppSidebar from '@renderer/components/layout/AppSidebar.vue'
 import WebViewBar from '@renderer/components/layout/WebViewBar.vue'
 import ViewContainer from '@renderer/components/views/ViewContainer.vue'
@@ -37,28 +37,6 @@ function getOrigin(url: string): string {
   }
 }
 
-function parseKlClipboard(text: string): PrefillViewData | null {
-  if (!text.startsWith('kl://')) {
-    // Try parsing as a plain URL
-    try {
-      const url = new URL(text.trim())
-      const name = url.hostname
-      return { name, url: text.trim(), icon: '', groupName: '' }
-    } catch {
-      return null
-    }
-  }
-  try {
-    const base64 = text.slice(5)
-    const json = new TextDecoder().decode(Uint8Array.from(atob(base64), c => c.charCodeAt(0)))
-    const data = JSON.parse(json)
-    if (!data.n || !data.u) return null
-    return { name: data.n, url: data.u, icon: data.i ?? '', groupName: data.g ?? '' }
-  } catch {
-    return null
-  }
-}
-
 let lastCheckedClipboard = ''
 
 async function checkClipboardForView() {
@@ -66,8 +44,11 @@ async function checkClipboardForView() {
     const text = await navigator.clipboard.readText()
     if (text === lastCheckedClipboard) return
     lastCheckedClipboard = text
-    const prefill = parseKlClipboard(text)
-    if (!prefill) return
+    // Only auto-import valid kl:// quick links; plain URLs and malformed
+    // share links are intercepted silently (no view is created).
+    const result = parseKlLink(text)
+    if (!result.ok || !result.data) return
+    const prefill = result.data
     await navigator.clipboard.writeText('')
     lastCheckedClipboard = ''
 
@@ -80,7 +61,7 @@ async function checkClipboardForView() {
       url: prefill.url,
       icon: prefill.icon,
       visible: 0,
-      sort_order: viewStore.views.filter(v => v.group_id === groupId).length,
+      sort_order: viewStore.views.filter((v) => v.group_id === groupId).length,
       bounds: '{}'
     })
 
@@ -105,7 +86,9 @@ onMounted(async () => {
     viewStore.setViews(data.views)
 
     // Restore last active view
-    const settings = (data as unknown as { groups: unknown[]; views: unknown[]; settings?: Record<string, unknown> }).settings
+    const settings = (
+      data as unknown as { groups: unknown[]; views: unknown[]; settings?: Record<string, unknown> }
+    ).settings
     const savedActiveId = settings?.activeViewId as string | undefined
     if (savedActiveId && data.views.some((v) => (v as { id: string }).id === savedActiveId)) {
       viewStore.setActiveView(savedActiveId)
@@ -155,12 +138,20 @@ onMounted(async () => {
   // Keyboard navigation: switch views with arrow keys
   // Main process forwards arrow keys via IPC because WebContentsView steals keyboard focus
   window.api.keyboard.onArrow((key) => {
-    if (appStore.settingsOpen || appStore.addViewDialogOpen || appStore.addGroupDialogOpen || appStore.externalLinkDialog.open || appStore.editViewDialog.open || appStore.importViewDialog.open) return
+    if (
+      appStore.settingsOpen ||
+      appStore.addViewDialogOpen ||
+      appStore.addGroupDialogOpen ||
+      appStore.externalLinkDialog.open ||
+      appStore.editViewDialog.open ||
+      appStore.importViewDialog.open
+    )
+      return
 
     const visibleViews = viewStore.visibleViews
     if (visibleViews.length === 0) return
 
-    const currentIndex = visibleViews.findIndex(v => v.id === viewStore.activeViewId)
+    const currentIndex = visibleViews.findIndex((v) => v.id === viewStore.activeViewId)
     if (currentIndex === -1) return
 
     if (key === 'ArrowDown') {

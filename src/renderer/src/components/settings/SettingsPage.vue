@@ -1,11 +1,27 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
 import { useTheme } from '@renderer/composables/useTheme'
 import { useToast } from '@renderer/composables/useToast'
-import { X, Trash2, Eye, EyeOff, Pencil, FolderOpen, RefreshCw, ChevronRight, ChevronDown, Search, Plus, Copy } from 'lucide-vue-next'
+import {
+  X,
+  Trash2,
+  Eye,
+  EyeOff,
+  Pencil,
+  FolderOpen,
+  RefreshCw,
+  ChevronRight,
+  ChevronDown,
+  Search,
+  Plus,
+  Copy,
+  CheckSquare,
+  Square,
+  ListChecks
+} from 'lucide-vue-next'
 
 const groupStore = useGroupStore()
 const viewStore = useViewStore()
@@ -23,10 +39,14 @@ const filteredViews = computed(() => {
   const views = viewStore.views
   if (!viewSearchQuery.value.trim()) return views
   const q = viewSearchQuery.value.trim().toLowerCase()
-  return views.filter(v =>
-    v.name.toLowerCase().includes(q) ||
-    v.url.toLowerCase().includes(q) ||
-    groupStore.groups.find(g => g.id === v.group_id)?.name.toLowerCase().includes(q)
+  return views.filter(
+    (v) =>
+      v.name.toLowerCase().includes(q) ||
+      v.url.toLowerCase().includes(q) ||
+      groupStore.groups
+        .find((g) => g.id === v.group_id)
+        ?.name.toLowerCase()
+        .includes(q)
   )
 })
 
@@ -34,7 +54,7 @@ const filteredGroups = computed(() => {
   const groups = groupStore.groups
   if (!groupSearchQuery.value.trim()) return groups
   const q = groupSearchQuery.value.trim().toLowerCase()
-  return groups.filter(g => g.name.toLowerCase().includes(q))
+  return groups.filter((g) => g.name.toLowerCase().includes(q))
 })
 
 const editingGroupId = ref<string | null>(null)
@@ -45,23 +65,33 @@ const expandedGroupIds = ref<Set<string>>(new Set())
 const resourcePath = ref<string | null>(null)
 const policyDialogType = ref<'service' | 'privacy' | null>(null)
 
+// Multi-select state for the views tab
+const selectMode = ref(false)
+const selectedViewIds = ref<Set<string>>(new Set())
+
 onMounted(async () => {
   resourcePath.value = await window.api.resourcePath.get()
 })
 
 function close() {
   appStore.settingsOpen = false
+  exitSelectMode()
 }
 
+// Exit multi-select mode whenever the user leaves the views tab.
+watch(activeTab, (tab) => {
+  if (tab !== 'views') exitSelectMode()
+})
+
 async function toggleViewVisibility(viewId: string) {
-  const view = viewStore.views.find(v => v.id === viewId)
+  const view = viewStore.views.find((v) => v.id === viewId)
   if (view) {
     await viewStore.updateView(viewId, { visible: view.visible ? 0 : 1 })
   }
 }
 
 function deleteView(viewId: string) {
-  const view = viewStore.views.find(v => v.id === viewId)
+  const view = viewStore.views.find((v) => v.id === viewId)
   appStore.openConfirmDialog(
     '删除视图',
     `确定要删除视图「${view?.name ?? ''}」吗？此操作不可恢复。`,
@@ -70,21 +100,86 @@ function deleteView(viewId: string) {
   )
 }
 
+// ---- Multi-select delete for views ----
+function isViewSelected(viewId: string) {
+  return selectedViewIds.value.has(viewId)
+}
+
+function toggleViewSelection(viewId: string) {
+  const next = new Set(selectedViewIds.value)
+  if (next.has(viewId)) {
+    next.delete(viewId)
+  } else {
+    next.add(viewId)
+  }
+  selectedViewIds.value = next
+}
+
+function onViewCardClick(view: { id: string }) {
+  if (selectMode.value) toggleViewSelection(view.id)
+}
+
+function enterSelectMode() {
+  selectMode.value = true
+  selectedViewIds.value = new Set()
+}
+
+function exitSelectMode() {
+  selectMode.value = false
+  selectedViewIds.value = new Set()
+}
+
+function selectAllFiltered() {
+  selectedViewIds.value = new Set(filteredViews.value.map((v) => v.id))
+}
+
+const allFilteredSelected = computed(
+  () =>
+    filteredViews.value.length > 0 &&
+    filteredViews.value.every((v) => selectedViewIds.value.has(v.id))
+)
+
+function deleteSelectedViews() {
+  const ids = Array.from(selectedViewIds.value)
+  if (ids.length === 0) {
+    showToast('请先选择要删除的视图')
+    return
+  }
+  appStore.openConfirmDialog(
+    '批量删除视图',
+    `确定要删除选中的 ${ids.length} 个视图吗？此操作不可恢复。`,
+    '删除',
+    async () => {
+      for (const id of ids) {
+        await viewStore.deleteView(id)
+      }
+      exitSelectMode()
+      showToast(`已删除 ${ids.length} 个视图`)
+    }
+  )
+}
+
 function openEditView(viewId: string) {
   appStore.openEditViewDialog(viewId)
 }
 
 function copyView(viewId: string) {
-  const view = viewStore.views.find(v => v.id === viewId)
+  const view = viewStore.views.find((v) => v.id === viewId)
   if (!view) return
-  const group = groupStore.groups.find(g => g.id === view.group_id)
+  const group = groupStore.groups.find((g) => g.id === view.group_id)
   const payload = {
     n: view.name,
     u: view.url,
     i: view.icon,
     g: group?.name ?? ''
   }
-  const encoded = 'kl://' + btoa(new TextEncoder().encode(JSON.stringify(payload)).reduce((s, b) => s + String.fromCharCode(b), ''))
+  const encoded =
+    'kl://' +
+    btoa(
+      new TextEncoder()
+        .encode(JSON.stringify(payload))
+        .reduce((s, b) => s + String.fromCharCode(b), '')
+    )
   navigator.clipboard.writeText(encoded)
   showToast('视图信息已复制到剪贴板')
 }
@@ -121,12 +216,9 @@ function deleteGroup(groupId: string) {
     showToast('该分组下存在视图，请先清空或迁移视图后再删除分组。')
     return
   }
-  const group = groupStore.groups.find(g => g.id === groupId)
-  appStore.openConfirmDialog(
-    '删除分组',
-    `确定要删除分组「${group?.name ?? ''}」吗？`,
-    '删除',
-    () => groupStore.deleteGroup(groupId)
+  const group = groupStore.groups.find((g) => g.id === groupId)
+  appStore.openConfirmDialog('删除分组', `确定要删除分组「${group?.name ?? ''}」吗？`, '删除', () =>
+    groupStore.deleteGroup(groupId)
   )
 }
 
@@ -212,15 +304,50 @@ async function changeResourcePath() {
           <!-- Views Tab -->
           <div v-if="activeTab === 'views'" class="tab-content">
             <div class="tab-section">
-              <div class="tab-search">
-                <Search :size="14" class="tab-search-icon" />
-                <input
-                  v-model="viewSearchQuery"
-                  type="text"
-                  class="tab-search-input"
-                  placeholder="搜索视图..."
-                />
+              <div class="tab-toolbar">
+                <div class="tab-search">
+                  <Search :size="14" class="tab-search-icon" />
+                  <input
+                    v-model="viewSearchQuery"
+                    type="text"
+                    class="tab-search-input"
+                    placeholder="搜索视图..."
+                  />
+                </div>
+                <button
+                  v-if="!selectMode && viewStore.views.length > 0"
+                  class="resource-btn"
+                  title="多选删除"
+                  @click="enterSelectMode"
+                >
+                  <ListChecks :size="16" />
+                  <span>多选</span>
+                </button>
               </div>
+
+              <!-- Multi-select action bar -->
+              <div v-if="selectMode" class="multi-select-bar">
+                <button class="multi-select-toggle" @click="selectAllFiltered">
+                  <CheckSquare v-if="allFilteredSelected" :size="16" />
+                  <Square v-else :size="16" />
+                  <span class="action-text">{{ allFilteredSelected ? '取消全选' : '全选' }}</span>
+                </button>
+                <span class="multi-select-count">已选 {{ selectedViewIds.size }} 项</span>
+                <div class="multi-select-actions">
+                  <button
+                    class="resource-btn danger"
+                    :disabled="selectedViewIds.size === 0"
+                    @click="deleteSelectedViews"
+                  >
+                    <Trash2 :size="16" />
+                    <span>删除选中</span>
+                  </button>
+                  <button class="resource-btn" @click="exitSelectMode">
+                    <span>取消</span>
+                  </button>
+                </div>
+              </div>
+
               <div v-if="viewStore.views.length === 0" class="empty-state">
                 <p>还没有添加任何视图</p>
               </div>
@@ -232,24 +359,30 @@ async function changeResourcePath() {
                   v-for="view in filteredViews"
                   :key="view.id"
                   class="view-card"
+                  :class="{
+                    'view-card-selectable': selectMode,
+                    'view-card-selected': selectMode && isViewSelected(view.id)
+                  }"
+                  @click="onViewCardClick(view)"
                 >
+                  <button
+                    v-if="selectMode"
+                    class="view-check"
+                    :title="isViewSelected(view.id) ? '取消选择' : '选择'"
+                    @click.stop="toggleViewSelection(view.id)"
+                  >
+                    <CheckSquare v-if="isViewSelected(view.id)" :size="18" />
+                    <Square v-else :size="18" />
+                  </button>
                   <div class="view-card-info">
                     <span class="view-card-name">{{ view.name }}</span>
                     <span class="view-card-url">{{ view.url }}</span>
                   </div>
-                  <div class="view-card-actions">
-                    <button
-                      class="action-btn"
-                      @click="copyView(view.id)"
-                      title="复制"
-                    >
+                  <div v-if="!selectMode" class="view-card-actions">
+                    <button class="action-btn" @click="copyView(view.id)" title="复制">
                       <Copy :size="16" />
                     </button>
-                    <button
-                      class="action-btn"
-                      @click="openEditView(view.id)"
-                      title="编辑"
-                    >
+                    <button class="action-btn" @click="openEditView(view.id)" title="编辑">
                       <Pencil :size="16" />
                     </button>
                     <button
@@ -260,17 +393,13 @@ async function changeResourcePath() {
                       <Eye v-if="view.visible" :size="16" />
                       <EyeOff v-else :size="16" />
                     </button>
-                    <button
-                      class="action-btn danger"
-                      @click="deleteView(view.id)"
-                      title="删除"
-                    >
+                    <button class="action-btn danger" @click="deleteView(view.id)" title="删除">
                       <Trash2 :size="16" />
                     </button>
                   </div>
                 </div>
               </div>
-              <div class="resource-actions">
+              <div v-if="!selectMode" class="resource-actions">
                 <button class="resource-btn" @click="openAddView">
                   <Plus :size="16" />
                   <span>新增视图</span>
@@ -298,11 +427,7 @@ async function changeResourcePath() {
                 <p>未找到匹配的分组</p>
               </div>
               <div v-else class="group-list">
-                <div
-                  v-for="group in filteredGroups"
-                  :key="group.id"
-                  class="group-wrapper"
-                >
+                <div v-for="group in filteredGroups" :key="group.id" class="group-wrapper">
                   <div class="group-card">
                     <button class="expand-btn" @click="toggleGroupExpand(group.id)">
                       <ChevronRight v-if="!isGroupExpanded(group.id)" :size="16" />
@@ -333,11 +458,7 @@ async function changeResourcePath() {
                         <span v-if="group.is_default" class="group-card-badge">默认</span>
                       </div>
                       <div class="group-card-actions">
-                        <button
-                          class="action-btn"
-                          @click="startEditGroup(group)"
-                          title="编辑"
-                        >
+                        <button class="action-btn" @click="startEditGroup(group)" title="编辑">
                           <Pencil :size="16" />
                         </button>
                         <button
@@ -363,7 +484,10 @@ async function changeResourcePath() {
                         {{ view.visible ? '侧边栏可见' : '隐藏' }}
                       </span>
                     </div>
-                    <div v-if="viewStore.getViewsByGroup(group.id).length === 0" class="group-view-empty">
+                    <div
+                      v-if="viewStore.getViewsByGroup(group.id).length === 0"
+                      class="group-view-empty"
+                    >
                       暂无视图
                     </div>
                   </div>
@@ -431,7 +555,7 @@ async function changeResourcePath() {
                 <img src="/icon.png" alt="框览" class="about-logo-img" />
               </div>
               <h2 class="about-name">框览</h2>
-              <p class="about-version">版本 1.2.0</p>
+              <p class="about-version">版本 1.3.0</p>
               <p class="about-desc">多视图聚合浏览器</p>
               <div class="about-info-list">
                 <div class="about-info-item">
@@ -440,7 +564,7 @@ async function changeResourcePath() {
                 </div>
                 <div class="about-info-item">
                   <span class="about-info-label">版本号</span>
-                  <span class="about-info-value">1.2.0</span>
+                  <span class="about-info-value">1.3.0</span>
                 </div>
                 <div class="about-info-item">
                   <span class="about-info-label">运行环境</span>
@@ -464,7 +588,9 @@ async function changeResourcePath() {
     <div v-if="policyDialogType" class="policy-overlay" @click.self="policyDialogType = null">
       <div class="policy-container">
         <div class="policy-header">
-          <h2 class="policy-title">{{ policyDialogType === 'service' ? '服务策略' : '隐私策略' }}</h2>
+          <h2 class="policy-title">
+            {{ policyDialogType === 'service' ? '服务策略' : '隐私策略' }}
+          </h2>
           <button class="settings-close" @click="policyDialogType = null">
             <X :size="20" />
           </button>
@@ -474,11 +600,17 @@ async function changeResourcePath() {
             <h3>服务条款</h3>
             <p>欢迎使用框览（KuangLan）多视图聚合浏览器。</p>
             <h4>1. 服务说明</h4>
-            <p>框览是一款桌面端多视图聚合浏览器，旨在帮助用户在一个窗口内同时管理和浏览多个网页视图。本应用通过本地运行，不提供云端服务。</p>
+            <p>
+              框览是一款桌面端多视图聚合浏览器，旨在帮助用户在一个窗口内同时管理和浏览多个网页视图。本应用通过本地运行，不提供云端服务。
+            </p>
             <h4>2. 使用规范</h4>
-            <p>用户应遵守当地法律法规，不得利用本应用从事违法活动。用户对通过本应用访问的网页内容自行负责，本应用不对其内容承担任何责任。</p>
+            <p>
+              用户应遵守当地法律法规，不得利用本应用从事违法活动。用户对通过本应用访问的网页内容自行负责，本应用不对其内容承担任何责任。
+            </p>
             <h4>3. 免责声明</h4>
-            <p>本应用按"现状"提供，不作任何明示或暗示的保证。对于因使用本应用而产生的任何直接或间接损失，开发者不承担责任。</p>
+            <p>
+              本应用按"现状"提供，不作任何明示或暗示的保证。对于因使用本应用而产生的任何直接或间接损失，开发者不承担责任。
+            </p>
             <h4>4. 变更通知</h4>
             <p>开发者保留随时修改本服务策略的权利，修改后的策略将在应用内公示。</p>
           </template>
@@ -486,9 +618,13 @@ async function changeResourcePath() {
             <h3>隐私策略</h3>
             <p>框览（KuangLan）重视您的隐私保护。</p>
             <h4>1. 数据收集</h4>
-            <p>本应用所有数据均存储在用户本地设备上，不收集、上传或分享任何用户个人信息至远程服务器。</p>
+            <p>
+              本应用所有数据均存储在用户本地设备上，不收集、上传或分享任何用户个人信息至远程服务器。
+            </p>
             <h4>2. 数据存储</h4>
-            <p>用户的视图配置、分组信息等数据保存在本地数据库中，数据路径由用户自行选择和管理。用户可随时通过应用设置修改或删除数据。</p>
+            <p>
+              用户的视图配置、分组信息等数据保存在本地数据库中，数据路径由用户自行选择和管理。用户可随时通过应用设置修改或删除数据。
+            </p>
             <h4>3. 网络访问</h4>
             <p>本应用仅用于加载用户指定的网页内容，不会在后台发起额外的网络请求或追踪用户行为。</p>
             <h4>4. 第三方服务</h4>
@@ -638,6 +774,91 @@ async function changeResourcePath() {
 .view-card:hover {
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
+}
+
+/* Multi-select mode for views */
+.view-card-selectable {
+  cursor: pointer;
+}
+
+.view-card-selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.view-check {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 150ms ease;
+}
+
+.view-check:hover {
+  color: var(--color-primary);
+}
+
+.view-card-selected .view-check {
+  color: var(--color-primary);
+}
+
+.tab-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.tab-toolbar .tab-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.multi-select-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.multi-select-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.multi-select-toggle:hover {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.multi-select-count {
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  flex: 1;
+}
+
+.multi-select-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .view-card-info {
@@ -896,11 +1117,11 @@ async function changeResourcePath() {
 }
 
 .light-preview {
-  background: #FFF8F6;
+  background: #fff8f6;
 }
 
 .dark-preview {
-  background: #1E1A2E;
+  background: #1e1a2e;
 }
 
 .theme-option span {
@@ -968,6 +1189,17 @@ async function changeResourcePath() {
 .resource-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.resource-btn.danger {
+  color: var(--color-danger);
+  border-color: rgba(255, 107, 138, 0.3);
+}
+
+.resource-btn.danger:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  color: #fff;
+  background: var(--color-danger);
 }
 
 /* Tab section */

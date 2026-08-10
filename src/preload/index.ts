@@ -29,7 +29,10 @@ const api = {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
-    isMaximized: () => ipcRenderer.invoke('window:is-maximized')
+    isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+    onMinimized: (callback: () => void) => {
+      ipcRenderer.on('window:minimized', () => callback())
+    }
   },
   // WebView management
   webview: {

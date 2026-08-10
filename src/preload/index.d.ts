@@ -92,6 +92,7 @@ declare global {
         maximize: () => Promise<void>
         close: () => Promise<void>
         isMaximized: () => Promise<boolean>
+        onMinimized: (callback: () => void) => void
       }
       webview: {
         create: (viewId: string, url: string) => Promise<void>

@@ -4,8 +4,8 @@ import { useAppStore } from '@renderer/stores/app'
 import { useGroupStore } from '@renderer/stores/group'
 import { useViewStore } from '@renderer/stores/view'
 import { useToast } from '@renderer/composables/useToast'
+import { parseKlLink } from '@renderer/composables/useKlLink'
 import { X, Link } from 'lucide-vue-next'
-import type { PrefillViewData } from '@renderer/stores/app'
 
 const appStore = useAppStore()
 const groupStore = useGroupStore()
@@ -15,20 +15,6 @@ const { show: showToast } = useToast()
 const isOpen = computed(() => appStore.importViewDialog.open)
 const linkInput = ref('')
 const errorMessage = ref('')
-
-function parseKlLink(text: string): PrefillViewData | null {
-  const trimmed = text.trim()
-  if (!trimmed.startsWith('kl://')) return null
-  try {
-    const base64 = trimmed.slice(5)
-    const json = new TextDecoder().decode(Uint8Array.from(atob(base64), c => c.charCodeAt(0)))
-    const data = JSON.parse(json)
-    if (!data.n || !data.u) return null
-    return { name: data.n, url: data.u, icon: data.i ?? '', groupName: data.g ?? '' }
-  } catch {
-    return null
-  }
-}
 
 function close() {
   appStore.closeImportViewDialog()
@@ -44,11 +30,13 @@ async function handleImport() {
     return
   }
 
-  const prefill = parseKlLink(linkInput.value)
-  if (!prefill) {
-    errorMessage.value = '无效的分享链接，请检查格式'
+  // Strictly validate the kl:// quick-link format; intercept when invalid.
+  const result = parseKlLink(linkInput.value)
+  if (!result.ok || !result.data) {
+    errorMessage.value = result.error ?? '无效的分享链接，请检查格式'
     return
   }
+  const prefill = result.data
 
   const groupId = groupStore.defaultGroup?.id
   if (!groupId) {
@@ -62,7 +50,7 @@ async function handleImport() {
     url: prefill.url,
     icon: prefill.icon,
     visible: 0,
-    sort_order: viewStore.views.filter(v => v.group_id === groupId).length,
+    sort_order: viewStore.views.filter((v) => v.group_id === groupId).length,
     bounds: '{}'
   })
 
