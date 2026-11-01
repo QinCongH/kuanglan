@@ -2,9 +2,12 @@ appId: com.kuang-lan
 productName: 框览
 directories:
   buildResources: build
+  # 工作区内的 *.asar 会被 Qoder 索引进程锁住, 导致 win-unpacked.tmp 重命名 EPERM
+  output: ../kuang_lan_build
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  - '!dist/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
