@@ -32,6 +32,9 @@ const api = {
     isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
     onMinimized: (callback: () => void) => {
       ipcRenderer.on('window:minimized', () => callback())
+    },
+    onRestored: (callback: () => void) => {
+      ipcRenderer.on('window:restored', () => callback())
     }
   },
   // WebView management
@@ -62,13 +65,10 @@ const api = {
       ipcRenderer.on('keyboard:arrow', (_e, key: string) => callback(key))
     }
   },
-  // Dock hover events from main process
+  // Dock panel events from main process (keyboard shortcuts)
   dock: {
-    onHoverEnter: (callback: () => void) => {
-      ipcRenderer.on('dock:hover-enter', () => callback())
-    },
-    onHoverLeave: (callback: () => void) => {
-      ipcRenderer.on('dock:hover-leave', () => callback())
+    onToggle: (callback: (open: boolean) => void) => {
+      ipcRenderer.on('dock:toggle', (_e, open: boolean) => callback(open))
     },
     panelVisible: (visible: boolean) => {
       ipcRenderer.send('dock:panel-visible', visible)

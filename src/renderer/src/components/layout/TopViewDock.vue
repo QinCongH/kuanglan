@@ -24,13 +24,9 @@ const filteredViews = computed(() => {
   const views = viewStore.allViewsForDock
   if (!appStore.dockSearchQuery.trim()) return views
   const q = appStore.dockSearchQuery.trim().toLowerCase()
-  return views.filter(
-    (v) =>
-      v.name.toLowerCase().includes(q) ||
-      groupStore.groups
-        .find((g) => g.id === v.group_id)
-        ?.name.toLowerCase()
-        .includes(q)
+  return views.filter(v =>
+    v.name.toLowerCase().includes(q) ||
+    groupStore.groups.find(g => g.id === v.group_id)?.name.toLowerCase().includes(q)
   )
 })
 
@@ -49,21 +45,16 @@ function resolveIcon(iconUrl: string) {
   })
 }
 
-watch(
-  filteredViews,
-  (views) => {
-    views.forEach((v) => resolveIcon(v.icon))
-  },
-  { immediate: true }
-)
+watch(filteredViews, (views) => {
+  views.forEach(v => resolveIcon(v.icon))
+}, { immediate: true })
 
-const anyDialogOpen = computed(
-  () =>
-    appStore.settingsOpen ||
-    appStore.addViewDialogOpen ||
-    appStore.addGroupDialogOpen ||
-    appStore.externalLinkDialog.open ||
-    appStore.editViewDialog.open
+const anyDialogOpen = computed(() =>
+  appStore.settingsOpen ||
+  appStore.addViewDialogOpen ||
+  appStore.addGroupDialogOpen ||
+  appStore.externalLinkDialog.open ||
+  appStore.editViewDialog.open
 )
 
 function showDock() {
@@ -96,19 +87,6 @@ function hideDock() {
   }, 1000)
 }
 
-function handleHoverEnter() {
-  if (anyDialogOpen.value) return
-  if (hideTimer) {
-    clearTimeout(hideTimer)
-    hideTimer = null
-  }
-  showDock()
-}
-
-function handleHoverLeave() {
-  hideDock()
-}
-
 function handlePanelEnter() {
   if (hideTimer) {
     clearTimeout(hideTimer)
@@ -123,15 +101,13 @@ function handlePanelLeave() {
 async function handleCardClick(view: { id: string }) {
   if (viewStore.visibleViewCount >= 8) {
     shakingCardId.value = view.id
-    setTimeout(() => {
-      shakingCardId.value = null
-    }, 500)
+    setTimeout(() => { shakingCardId.value = null }, 500)
     showToast('最多只能保留8个常用视图，请先移除一个。')
     return
   }
   await viewStore.addViewToSidebar(view.id)
   viewStore.setActiveView(view.id)
-  // closeDock()
+  closeDock()
   const activeView = viewStore.activeView
   if (activeView) window.api.webview.create(activeView.id, activeView.url)
 }
@@ -141,14 +117,8 @@ function closeDock() {
   appStore.topDockOpen = false
   window.api.dock.panelVisible(false)
   appStore.dockSearchQuery = ''
-  if (hideTimer) {
-    clearTimeout(hideTimer)
-    hideTimer = null
-  }
-  if (autoHideTimer) {
-    clearTimeout(autoHideTimer)
-    autoHideTimer = null
-  }
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null }
+  if (autoHideTimer) { clearTimeout(autoHideTimer); autoHideTimer = null }
   setTimeout(() => {
     if (!dockVisible.value) {
       dockRendered.value = false
@@ -164,33 +134,31 @@ function showDockTemporarily(duration = 2000) {
   }, duration)
 }
 
-// Listen for dock hover events from main process
+// Listen for dock toggle IPC from main process (Alt+Z / Alt+X)
 onMounted(() => {
-  window.api.dock.onHoverEnter(() => {
-    handleHoverEnter()
-  })
-  window.api.dock.onHoverLeave(() => {
-    if (dockVisible.value) {
-      handleHoverLeave()
+  window.api.dock.onToggle((open: boolean) => {
+    if (open) {
+      showDock()
+    } else {
+      closeDock()
     }
   })
-  // Hide the dock by default when the window is minimized so it does not
-  // reappear in an open state after the window is restored.
+  // Hide dock when window is minimized or restored
   window.api.window.onMinimized(() => {
+    closeDock()
+  })
+  window.api.window.onRestored(() => {
     closeDock()
   })
 })
 
 // Watch for hint from AddViewDialog
-watch(
-  () => appStore.showDockHint,
-  (val) => {
-    if (val) {
-      appStore.showDockHint = false
-      showDockTemporarily(2000)
-    }
+watch(() => appStore.showDockHint, (val) => {
+  if (val) {
+    appStore.showDockHint = false
+    showDockTemporarily(2000)
   }
-)
+})
 
 function checkOverflow() {
   const list = dockListRef.value
@@ -204,22 +172,22 @@ watch(filteredViews, () => {
   requestAnimationFrame(() => checkOverflow())
 })
 
-// Close dock when topDockOpen is externally set to false (e.g. minimize)
-watch(
-  () => appStore.topDockOpen,
-  (val) => {
-    if (!val && dockVisible.value) {
-      closeDock()
-    }
+// Keep dock state in sync when topDockOpen is changed externally
+// (e.g. toolbar toggle button): open if opened, close if closed.
+watch(() => appStore.topDockOpen, (val) => {
+  if (val && !dockVisible.value) {
+    showDock()
+  } else if (!val && dockVisible.value) {
+    closeDock()
   }
-)
+})
 
 function getViewInitials(name: string) {
   return name.slice(0, 2).toUpperCase()
 }
 
 function getGroupName(groupId: string) {
-  return groupStore.groups.find((g) => g.id === groupId)?.name ?? ''
+  return groupStore.groups.find(g => g.id === groupId)?.name ?? ''
 }
 
 function getTooltip(view: { group_id: string; name: string }) {
@@ -275,16 +243,13 @@ function handleListMouseLeave() {
       @mouseleave="handlePanelLeave"
     >
       <!-- View cards -->
-      <div v-if="viewStore.allViewsForDock.length === 0" class="dock-empty">还没有添加任何视图</div>
-      <div v-else-if="filteredViews.length === 0" class="dock-empty">未找到匹配的视图</div>
-      <div
-        v-else
-        class="dock-list"
-        :class="{ 'dock-list-overflow': isOverflowing }"
-        ref="dockListRef"
-        @mousemove="handleListMouseMove"
-        @mouseleave="handleListMouseLeave"
-      >
+      <div v-if="viewStore.allViewsForDock.length === 0" class="dock-empty">
+        还没有添加任何视图
+      </div>
+      <div v-else-if="filteredViews.length === 0" class="dock-empty">
+        未找到匹配的视图
+      </div>
+      <div v-else class="dock-list" :class="{ 'dock-list-overflow': isOverflowing }" ref="dockListRef" @mousemove="handleListMouseMove" @mouseleave="handleListMouseLeave">
         <div
           v-for="view in filteredViews"
           :key="view.id"
@@ -296,16 +261,11 @@ function handleListMouseLeave() {
           @click="handleCardClick(view)"
         >
           <div class="dock-card-icon">
-            <img
-              v-if="view.icon"
-              :src="iconSrcMap[view.icon] || view.icon"
-              class="dock-icon-img"
-              alt=""
-            />
+            <img v-if="view.icon" :src="iconSrcMap[view.icon] || view.icon" class="dock-icon-img" alt="" />
             <span v-else class="dock-icon-initials">{{ getViewInitials(view.name) }}</span>
           </div>
         </div>
-      </div>
+      </div> 
 
       <!-- Toast inside dock panel -->
       <Transition name="dock-toast">
@@ -335,10 +295,9 @@ function handleListMouseLeave() {
   opacity: 0;
   transform: translateY(-8px);
   pointer-events: none;
-  transition:
-    left 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    opacity 180ms ease-in,
-    transform 180ms ease-in;
+  transition: left 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 180ms ease-in,
+              transform 180ms ease-in;
 }
 
 .dock-panel.sidebar-expanded {
@@ -349,10 +308,9 @@ function handleListMouseLeave() {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
-  transition:
-    left 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    opacity 250ms ease-out,
-    transform 250ms ease-out;
+  transition: left 250ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 250ms ease-out,
+              transform 250ms ease-out;
 }
 
 /* View cards */

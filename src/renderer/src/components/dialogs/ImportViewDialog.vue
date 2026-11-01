@@ -50,7 +50,7 @@ async function handleImport() {
     url: prefill.url,
     icon: prefill.icon,
     visible: 0,
-    sort_order: viewStore.views.filter((v) => v.group_id === groupId).length,
+    sort_order: viewStore.views.filter(v => v.group_id === groupId).length,
     bounds: '{}'
   })
 

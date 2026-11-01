@@ -93,6 +93,7 @@ declare global {
         close: () => Promise<void>
         isMaximized: () => Promise<boolean>
         onMinimized: (callback: () => void) => void
+        onRestored: (callback: () => void) => void
       }
       webview: {
         create: (viewId: string, url: string) => Promise<void>
@@ -116,8 +117,7 @@ declare global {
         onArrow: (callback: (key: string) => void) => void
       }
       dock: {
-        onHoverEnter: (callback: () => void) => void
-        onHoverLeave: (callback: () => void) => void
+        onToggle: (callback: (open: boolean) => void) => void
         panelVisible: (visible: boolean) => void
       }
       shell: {

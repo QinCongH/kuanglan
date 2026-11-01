@@ -555,7 +555,7 @@ async function changeResourcePath() {
                 <img src="/icon.png" alt="框览" class="about-logo-img" />
               </div>
               <h2 class="about-name">框览</h2>
-              <p class="about-version">版本 1.3.0</p>
+              <p class="about-version">版本 1.4.0</p>
               <p class="about-desc">多视图聚合浏览器</p>
               <div class="about-info-list">
                 <div class="about-info-item">

@@ -61,7 +61,7 @@ async function checkClipboardForView() {
       url: prefill.url,
       icon: prefill.icon,
       visible: 0,
-      sort_order: viewStore.views.filter((v) => v.group_id === groupId).length,
+      sort_order: viewStore.views.filter(v => v.group_id === groupId).length,
       bounds: '{}'
     })
 
@@ -86,9 +86,7 @@ onMounted(async () => {
     viewStore.setViews(data.views)
 
     // Restore last active view
-    const settings = (
-      data as unknown as { groups: unknown[]; views: unknown[]; settings?: Record<string, unknown> }
-    ).settings
+    const settings = (data as unknown as { groups: unknown[]; views: unknown[]; settings?: Record<string, unknown> }).settings
     const savedActiveId = settings?.activeViewId as string | undefined
     if (savedActiveId && data.views.some((v) => (v as { id: string }).id === savedActiveId)) {
       viewStore.setActiveView(savedActiveId)
@@ -138,20 +136,12 @@ onMounted(async () => {
   // Keyboard navigation: switch views with arrow keys
   // Main process forwards arrow keys via IPC because WebContentsView steals keyboard focus
   window.api.keyboard.onArrow((key) => {
-    if (
-      appStore.settingsOpen ||
-      appStore.addViewDialogOpen ||
-      appStore.addGroupDialogOpen ||
-      appStore.externalLinkDialog.open ||
-      appStore.editViewDialog.open ||
-      appStore.importViewDialog.open
-    )
-      return
+    if (appStore.settingsOpen || appStore.addViewDialogOpen || appStore.addGroupDialogOpen || appStore.externalLinkDialog.open || appStore.editViewDialog.open || appStore.importViewDialog.open) return
 
     const visibleViews = viewStore.visibleViews
     if (visibleViews.length === 0) return
 
-    const currentIndex = visibleViews.findIndex((v) => v.id === viewStore.activeViewId)
+    const currentIndex = visibleViews.findIndex(v => v.id === viewStore.activeViewId)
     if (currentIndex === -1) return
 
     if (key === 'ArrowDown') {

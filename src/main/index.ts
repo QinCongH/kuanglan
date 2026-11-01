@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { initDataDir, loadData, getResourcePath, setResourcePath } from './database'
 import { registerIpcHandlers } from './ipc'
@@ -74,6 +74,11 @@ function createWindow(): void {
   // (.dock-list) hides by default instead of staying open after restoring.
   mainWindow.on('minimize', () => {
     mainWindow?.webContents.send('window:minimized')
+  })
+
+  // When the window is restored, also hide the dock panel.
+  mainWindow.on('restore', () => {
+    mainWindow?.webContents.send('window:restored')
   })
 
   // Register window control IPC handlers
@@ -159,70 +164,18 @@ if (!gotTheLock) {
     globalShortcut.register('Ctrl+Down', () => {
       mainWindow?.webContents.send('keyboard:arrow', 'ArrowDown')
     })
-
-    // Detect mouse hovering over top bar area to show view dock
-    let dockHoverActive = false
-    let dockPanelVisible = false
-    let dockHoverTimer: ReturnType<typeof setTimeout> | null = null
-    const TOPBAR_HEIGHT = 40
-
-    // Renderer notifies when dock panel is shown/hidden
-    ipcMain.on('dock:panel-visible', (_e, visible: boolean) => {
-      dockPanelVisible = visible
-      setDockVisible(visible)
+    // Alt+Z: show dock panel; Alt+X: hide dock panel
+    globalShortcut.register('Alt+Z', () => {
+      mainWindow?.webContents.send('dock:toggle', true)
+    })
+    globalShortcut.register('Alt+X', () => {
+      mainWindow?.webContents.send('dock:toggle', false)
     })
 
-    setInterval(() => {
-      if (!mainWindow || mainWindow.isDestroyed()) return
-      // When dock panel is visible, don't interfere - renderer manages hide via mouseleave
-      if (dockPanelVisible) return
-
-      if (mainWindow.isMinimized()) {
-        if (dockHoverActive) {
-          dockHoverActive = false
-          if (dockHoverTimer) {
-            clearTimeout(dockHoverTimer)
-            dockHoverTimer = null
-          }
-        }
-        return
-      }
-
-      const cursorPos = screen.getCursorScreenPoint()
-      const winBounds = mainWindow.getBounds()
-
-      const isInWindow =
-        cursorPos.x >= winBounds.x &&
-        cursorPos.x <= winBounds.x + winBounds.width &&
-        cursorPos.y >= winBounds.y &&
-        cursorPos.y <= winBounds.y + winBounds.height
-
-      const isInTopBar =
-        isInWindow &&
-        cursorPos.y >= winBounds.y &&
-        cursorPos.y <= winBounds.y + TOPBAR_HEIGHT &&
-        cursorPos.x >= winBounds.x + winBounds.width * 0.3 &&
-        cursorPos.x <= winBounds.x + winBounds.width * 0.7
-
-      if (isInTopBar && !dockHoverActive) {
-        dockHoverActive = true
-        dockHoverTimer = setTimeout(() => {
-          mainWindow?.webContents.send('dock:hover-enter')
-        }, 300)
-      } else if (!isInTopBar && dockHoverActive) {
-        dockHoverActive = false
-        if (dockHoverTimer) {
-          clearTimeout(dockHoverTimer)
-          dockHoverTimer = null
-        }
-      } else if (!isInWindow && dockHoverActive) {
-        dockHoverActive = false
-        if (dockHoverTimer) {
-          clearTimeout(dockHoverTimer)
-          dockHoverTimer = null
-        }
-      }
-    }, 150)
+    // Renderer notifies when dock panel is shown/hidden so webviews can shift down
+    ipcMain.on('dock:panel-visible', (_e, visible: boolean) => {
+      setDockVisible(visible)
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

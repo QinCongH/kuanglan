@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useViewStore } from '@renderer/stores/view'
 import { useAppStore } from '@renderer/stores/app'
-import { RefreshCw, ExternalLink, Home, Minus, Square, X, Trash2, Search, Link } from 'lucide-vue-next'
+import { RefreshCw, ExternalLink, Home, Minus, Square, X, Trash2, Search, Link, PanelTopOpen, PanelTopClose } from 'lucide-vue-next'
 
 const viewStore = useViewStore()
 const appStore = useAppStore()
@@ -29,6 +29,10 @@ async function handleMinimize() {
   appStore.topDockOpen = false
   appStore.dockSearchQuery = ''
   await window.api.window.minimize()
+}
+
+function handleToggleDock() {
+  appStore.topDockOpen = !appStore.topDockOpen
 }
 
 async function handleMaximize() {
@@ -119,6 +123,10 @@ function cancelGoHome() {
     </div>
 
     <div class="bar-actions">
+      <button class="action-btn" :title="dockOpen ? '收起浮窗 (Alt+X)' : '展开浮窗 (Alt+Z)'" @click="handleToggleDock">
+        <PanelTopOpen v-if="!dockOpen" :size="14" />
+        <PanelTopClose v-else :size="14" />
+      </button>
       <button class="action-btn" @click="appStore.openImportViewDialog()" title="导入视图">
         <Link :size="14" />
       </button>
